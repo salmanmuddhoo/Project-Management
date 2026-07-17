@@ -1,13 +1,15 @@
 /**
  * Workbook parsing: SheetJS → RawWorkbook → typed Project.
  *
- * Parsing is deliberately split in two stages:
  *  1. `readWorkbook` extracts a `RawWorkbook` (coerced cell values + row
- *     coordinates + anything that failed coercion) without judging validity.
- *  2. `validateWorkbook` (separate module) inspects the RawWorkbook and
- *     produces the validation report shown to the user.
- *  3. `buildProject` turns a RawWorkbook into the typed domain object once
- *     the user confirms the import.
+ *     coordinates) without judging validity.
+ *  2. `validateWorkbook` (separate module) inspects it and produces the
+ *     validation report shown before import.
+ *  3. `buildProject` turns a RawWorkbook into the typed domain object.
+ *
+ * The "Project Brief" sheet is a document — charter key/values, scope
+ * key/values and four stacked tables — so tables are located by scanning
+ * column A for each table's identifying header rather than by fixed rows.
  *
  * Everything runs in the browser; the file never leaves the machine.
  */
@@ -15,31 +17,32 @@
 import * as XLSX from "xlsx";
 
 import type {
-  BacklogItem,
   BudgetLine,
-  ExpectedOutput,
+  Deliverable,
   Issue,
   KanbanColumn,
   Milestone,
   Project,
   ProjectCharter,
-  ResourcePlan,
   Risk,
   ScopeDefinition,
-  Sprint,
-  TimeEntry,
+  Task,
+  TeamMember,
 } from "@/types/project";
 import { KANBAN_COLUMNS } from "@/types/project";
 import type { ValidationIssue } from "@/types/validation";
 import { hashId } from "@/lib/utils";
 import {
   CHARTER_FIELDS,
+  NARRATIVE_FIELDS,
   SCOPE_FIELDS,
   SHEETS,
-  TABULAR_SHEETS,
+  TABLE_MARKERS,
+  TABLE_SPECS,
   normalizeHeader,
   type ColumnDef,
   type SheetKey,
+  type TableSpec,
 } from "./schema";
 
 // ---------------------------------------------------------------------------
@@ -54,18 +57,17 @@ export interface ParsedRow {
 
 export interface ParsedTable {
   rows: ParsedRow[];
-  /** Template headers that could not be found on the sheet. */
+  /** Whether the table's header row was found on its sheet at all. */
+  found: boolean;
   missingColumns: string[];
 }
 
 export interface RawWorkbook {
   fileName: string;
-  /** Sheet keys that are present in the file. */
   presentSheets: SheetKey[];
   charter: Record<string, unknown>;
   scope: Record<string, string[]>;
-  tables: Partial<Record<SheetKey, ParsedTable>>;
-  /** Issues discovered while coercing cells (bad dates, bad numbers). */
+  tables: Record<TableSpec["key"], ParsedTable>;
   coercionIssues: ValidationIssue[];
 }
 
@@ -88,33 +90,22 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/**
- * Percent cells arrive either as Excel fractions (0.45) or plain numbers
- * (45). Values ≤ 1 are treated as fractions; the result is always 0–100.
- */
+/** Percent cells: Excel fractions (0.45) → 45; plain numbers pass through. */
 function toPercent(value: unknown): number | null {
-  const raw =
-    typeof value === "string" ? value.replace("%", "").trim() : value;
+  const raw = typeof value === "string" ? value.replace("%", "").trim() : value;
   const num = toNumber(raw);
   if (num == null) return null;
-  const hadPercentSign = typeof value === "string" && value.includes("%");
-  return !hadPercentSign && num <= 1 && num >= 0 ? num * 100 : num;
+  const hadSign = typeof value === "string" && value.includes("%");
+  return !hadSign && num <= 1 && num >= 0 ? num * 100 : num;
 }
 
-/** Excel serial date origin (1900 system, as SheetJS uses). */
 function serialToDate(serial: number): Date {
-  const utcDays = serial - 25569;
-  return new Date(Math.round(utcDays * 86_400_000));
+  return new Date(Math.round((serial - 25569) * 86_400_000));
 }
 
 const TEXT_DATE =
   /^(\d{4})-(\d{1,2})-(\d{1,2})$|^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/;
 
-/**
- * Accepts native Date cells, Excel serials and common text formats
- * (YYYY-MM-DD, DD/MM/YYYY). Returns `invalid` when the cell holds something
- * that clearly intends to be a date but cannot be read.
- */
 function toDate(value: unknown): { date: Date | null; invalid: boolean } {
   if (value == null || value === "") return { date: null, invalid: false };
   if (value instanceof Date) {
@@ -133,11 +124,11 @@ function toDate(value: unknown): { date: Date | null; invalid: boolean } {
       ? [Number(match[1]), Number(match[2]), Number(match[3])]
       : [Number(match[6]), Number(match[5]), Number(match[4])];
     const date = new Date(Date.UTC(y, m - 1, d));
-    const roundTrips =
+    const ok =
       date.getUTCFullYear() === y &&
       date.getUTCMonth() === m - 1 &&
       date.getUTCDate() === d;
-    return roundTrips ? { date, invalid: false } : { date: null, invalid: true };
+    return ok ? { date, invalid: false } : { date: null, invalid: true };
   }
   const fallback = new Date(text);
   return Number.isNaN(fallback.getTime())
@@ -187,77 +178,110 @@ function coerceCell(
 }
 
 // ---------------------------------------------------------------------------
-// Sheet extraction
+// Sheet helpers
 // ---------------------------------------------------------------------------
+
+type Grid = unknown[][];
 
 function findSheet(wb: XLSX.WorkBook, displayName: string): string | null {
   const wanted = normalizeHeader(displayName);
   return wb.SheetNames.find((n) => normalizeHeader(n) === wanted) ?? null;
 }
 
-/** Key/value sheets (Charter, Scope): column A = field, column B = value. */
-function readKeyValueSheet(
-  ws: XLSX.WorkSheet,
-): Map<string, unknown> {
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
+function gridOf(ws: XLSX.WorkSheet): Grid {
+  return XLSX.utils.sheet_to_json<unknown[]>(ws, {
     header: 1,
     defval: null,
-    blankrows: false,
+    blankrows: true,
   });
+}
+
+/**
+ * Build a label→value map from any column-A / column-B pairs on a sheet.
+ * Used for the charter and scope key/value blocks. Repeated keys (multi-line
+ * scope entered as separate rows) are concatenated with newlines.
+ */
+function keyValueMap(grid: Grid): Map<string, unknown> {
   const map = new Map<string, unknown>();
-  for (const row of rows) {
-    const key = normalizeHeader(row[0]);
+  for (const row of grid) {
+    const key = normalizeHeader(row?.[0]);
     if (!key) continue;
-    // Keep the first occurrence; append for repeated Scope-style keys.
+    const value = row?.[1] ?? null;
     if (map.has(key)) {
-      const existing = map.get(key);
-      map.set(key, `${toText(existing)}\n${toText(row[1])}`);
+      map.set(key, `${toText(map.get(key))}\n${toText(value)}`.trim());
     } else {
-      map.set(key, row[1]);
+      map.set(key, value);
     }
   }
   return map;
 }
 
-function readTable(
-  ws: XLSX.WorkSheet,
-  columns: ColumnDef[],
+const STOP_MARKERS = new Set(TABLE_MARKERS.map((m) => normalizeHeader(m)));
+
+/**
+ * Locate a table by its first-column header anywhere on the grid, then read
+ * data rows until a blank row or the start of another known table.
+ */
+function extractTable(
+  grid: Grid,
+  spec: TableSpec,
   sheetName: string,
   issues: ValidationIssue[],
 ): ParsedTable {
-  const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, {
-    header: 1,
-    defval: null,
-    blankrows: true,
-  });
-  const headerRow = grid[0] ?? [];
+  const firstHeader = normalizeHeader(spec.columns[0].header);
+  const headerRowIndex = grid.findIndex(
+    (row) => normalizeHeader(row?.[0]) === firstHeader,
+  );
+  if (headerRowIndex < 0) {
+    return { rows: [], found: false, missingColumns: [] };
+  }
+
+  const headerRow = grid[headerRowIndex] ?? [];
   const indexByKey = new Map<string, number>();
-  for (const def of columns) {
+  for (const def of spec.columns) {
     const idx = headerRow.findIndex(
       (h) => normalizeHeader(h) === normalizeHeader(def.header),
     );
     if (idx >= 0) indexByKey.set(def.key, idx);
   }
-  const missingColumns = columns
-    .filter((c) => !indexByKey.has(c.key))
+  const missingColumns = spec.columns
+    .filter((c) => !c.auto && !indexByKey.has(c.key))
     .map((c) => c.header);
 
   const rows: ParsedRow[] = [];
-  for (let i = 1; i < grid.length; i++) {
-    const excelRow = i + 1;
+  for (let i = headerRowIndex + 1; i < grid.length; i++) {
     const raw = grid[i];
-    if (!raw || raw.every((c) => c == null || String(c).trim() === "")) {
-      continue;
+    const firstCell = normalizeHeader(raw?.[0]);
+    // Stop at the next table's header row.
+    if (firstCell && STOP_MARKERS.has(firstCell) && firstCell !== firstHeader) {
+      break;
     }
+    const blank =
+      !raw || raw.every((c) => c == null || String(c).trim() === "");
+    if (blank) break;
+
+    const excelRow = i + 1;
     const values: Record<string, unknown> = {};
-    for (const def of columns) {
+    for (const def of spec.columns) {
+      if (def.auto) continue; // calculated on import, never read
       const idx = indexByKey.get(def.key);
       const cell = idx == null ? null : raw[idx];
       values[def.key] = coerceCell(cell, def, sheetName, excelRow, issues);
     }
     rows.push({ rowNumber: excelRow, values });
   }
-  return { rows, missingColumns };
+  return { rows, found: true, missingColumns };
+}
+
+function emptyTable(): ParsedTable {
+  return { rows: [], found: false, missingColumns: [] };
+}
+
+/** An empty tables record (used as a fallback when a file cannot be read). */
+export function emptyTables(): RawWorkbook["tables"] {
+  const tables = {} as RawWorkbook["tables"];
+  for (const spec of TABLE_SPECS) tables[spec.key] = emptyTable();
+  return tables;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,45 +294,43 @@ export async function readWorkbook(file: File): Promise<RawWorkbook> {
 
   const coercionIssues: ValidationIssue[] = [];
   const presentSheets: SheetKey[] = [];
-  const tables: Partial<Record<SheetKey, ParsedTable>> = {};
-  let charter: Record<string, unknown> = {};
-  let scope: Record<string, string[]> = {};
-
+  const grids = new Map<SheetKey, Grid>();
   for (const key of Object.keys(SHEETS) as SheetKey[]) {
     const sheetName = findSheet(wb, SHEETS[key]);
-    if (!sheetName) continue;
-    presentSheets.push(key);
-    const ws = wb.Sheets[sheetName];
-
-    if (key === "charter") {
-      const kv = readKeyValueSheet(ws);
-      charter = {};
-      for (const field of CHARTER_FIELDS) {
-        const raw = kv.get(normalizeHeader(field.header));
-        charter[field.key] = coerceCell(
-          raw,
-          field,
-          SHEETS.charter,
-          0,
-          coercionIssues,
-        );
-      }
-    } else if (key === "scope") {
-      const kv = readKeyValueSheet(ws);
-      scope = {};
-      for (const field of SCOPE_FIELDS) {
-        const raw = toText(kv.get(normalizeHeader(field.header)));
-        scope[field.key] = raw
-          .split(/\r?\n|;/) // one item per line (or semicolon-separated)
-          .map((s) => s.trim())
-          .filter(Boolean);
-      }
-    } else {
-      const columns = TABULAR_SHEETS[key];
-      if (columns) {
-        tables[key] = readTable(ws, columns, SHEETS[key], coercionIssues);
-      }
+    if (sheetName) {
+      presentSheets.push(key);
+      grids.set(key, gridOf(wb.Sheets[sheetName]));
     }
+  }
+
+  // Charter + scope from the Brief key/value pairs.
+  const briefGrid = grids.get("brief") ?? [];
+  const kv = keyValueMap(briefGrid);
+  const charter: Record<string, unknown> = {};
+  for (const field of [...CHARTER_FIELDS, ...NARRATIVE_FIELDS]) {
+    charter[field.key] = coerceCell(
+      kv.get(normalizeHeader(field.header)),
+      field,
+      SHEETS.brief,
+      0,
+      coercionIssues,
+    );
+  }
+  const scope: Record<string, string[]> = {};
+  for (const field of SCOPE_FIELDS) {
+    scope[field.key] = toText(kv.get(normalizeHeader(field.header)))
+      .split(/\r?\n|;/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  // Tables (each on its designated sheet).
+  const tables = {} as RawWorkbook["tables"];
+  for (const spec of TABLE_SPECS) {
+    const grid = grids.get(spec.sheet);
+    tables[spec.key] = grid
+      ? extractTable(grid, spec, SHEETS[spec.sheet], coercionIssues)
+      : emptyTable();
   }
 
   return {
@@ -328,7 +350,6 @@ export async function readWorkbook(file: File): Promise<RawWorkbook> {
 const KANBAN_LOOKUP = new Map<string, KanbanColumn>(
   KANBAN_COLUMNS.map((c) => [normalizeHeader(c), c]),
 );
-// Common aliases coming from Jira/DevOps exports.
 const KANBAN_ALIASES: Record<string, KanbanColumn> = {
   todo: "To Do",
   "to-do": "To Do",
@@ -337,9 +358,8 @@ const KANBAN_ALIASES: Record<string, KanbanColumn> = {
   doing: "In Progress",
   wip: "In Progress",
   "in review": "Review",
-  "code review": "Review",
-  qa: "Testing",
-  test: "Testing",
+  testing: "Review",
+  qa: "Review",
   closed: "Done",
   complete: "Done",
   completed: "Done",
@@ -351,8 +371,8 @@ export function toKanbanColumn(status: string): KanbanColumn {
   return KANBAN_LOOKUP.get(norm) ?? KANBAN_ALIASES[norm] ?? "Backlog";
 }
 
-function rowsOf(raw: RawWorkbook, key: SheetKey): Record<string, unknown>[] {
-  return (raw.tables[key]?.rows ?? []).map((r) => r.values);
+function rowsOf(raw: RawWorkbook, key: TableSpec["key"]): Record<string, unknown>[] {
+  return raw.tables[key].rows.map((r) => r.values);
 }
 
 export function buildProject(raw: RawWorkbook, warningCount: number): Project {
@@ -366,59 +386,44 @@ export function buildProject(raw: RawWorkbook, warningCount: number): Project {
     priority: (c.priority as ProjectCharter["priority"]) ?? "",
     status: (c.status as ProjectCharter["status"]) ?? "",
     currentPhase: (c.currentPhase as ProjectCharter["currentPhase"]) ?? "",
+    fundingType: (c.fundingType as ProjectCharter["fundingType"]) ?? "",
+    budget: c.budget as number | null,
+    plannedStartDate: c.plannedStartDate as Date | null,
+    plannedEndDate: c.plannedEndDate as Date | null,
+    actualStartDate: c.actualStartDate as Date | null,
     description: c.description as string,
     businessNeed: c.businessNeed as string,
     objectives: c.objectives as string,
     benefits: c.benefits as string,
-    fundingType: (c.fundingType as ProjectCharter["fundingType"]) ?? "",
-    budget: c.budget as number | null,
-    fundingAmount: c.fundingAmount as number | null,
-    plannedStartDate: c.plannedStartDate as Date | null,
-    plannedEndDate: c.plannedEndDate as Date | null,
-    actualStartDate: c.actualStartDate as Date | null,
-    forecastEndDate: c.forecastEndDate as Date | null,
-    currentProgressPct: c.currentProgressPct as number | null,
-    overallHealth: (c.overallHealth as ProjectCharter["overallHealth"]) ?? "",
   };
 
   const scope: ScopeDefinition = {
-    deliverables: raw.scope.deliverables ?? [],
+    inScope: raw.scope.inScope ?? [],
     outOfScope: raw.scope.outOfScope ?? [],
-    successCriteria: raw.scope.successCriteria ?? [],
-    dependencies: raw.scope.dependencies ?? [],
-    constraints: raw.scope.constraints ?? [],
     assumptions: raw.scope.assumptions ?? [],
+    constraints: raw.scope.constraints ?? [],
   };
 
-  const backlog = rowsOf(raw, "backlog").map((v) => ({
-    ...(v as unknown as BacklogItem),
+  const tasks: Task[] = rowsOf(raw, "tasks").map((v, i) => ({
+    id: `T${i + 1}`,
+    title: v.title as string,
+    owner: v.owner as string,
+    priority: (v.priority as Task["priority"]) ?? "",
+    dueDate: v.dueDate as Date | null,
     status: toKanbanColumn(String(v.status ?? "")),
   }));
-
-  // Budget variance is always recomputed: Planned − Forecast (fallback Actual).
-  const budget = rowsOf(raw, "budget").map((v) => {
-    const line = v as unknown as BudgetLine;
-    const basis = line.forecast ?? line.actual;
-    return {
-      ...line,
-      variance:
-        line.planned != null && basis != null ? line.planned - basis : null,
-    };
-  });
 
   return {
     id: hashId(`${charter.projectCode}|${charter.projectName}|${raw.fileName}`),
     charter,
-    outputs: rowsOf(raw, "outputs") as unknown as ExpectedOutput[],
     scope,
     milestones: rowsOf(raw, "milestones") as unknown as Milestone[],
-    resources: rowsOf(raw, "resources") as unknown as ResourcePlan[],
-    budget,
+    deliverables: rowsOf(raw, "deliverables") as unknown as Deliverable[],
     risks: rowsOf(raw, "risks") as unknown as Risk[],
     issues: rowsOf(raw, "issues") as unknown as Issue[],
-    backlog,
-    timeTracking: rowsOf(raw, "timeTracking") as unknown as TimeEntry[],
-    sprints: rowsOf(raw, "sprints") as unknown as Sprint[],
+    team: rowsOf(raw, "team") as unknown as TeamMember[],
+    budget: rowsOf(raw, "budget") as unknown as BudgetLine[],
+    tasks,
     meta: {
       sourceFileName: raw.fileName,
       importedAt: new Date(),

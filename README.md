@@ -15,17 +15,23 @@ replace, delivery tools like Jira, Azure DevOps or Microsoft Project.
 
 ## Features
 
-- **Standard workbook template** (downloadable in-app, plus a 3-project sample
-  portfolio): Charter, Expected Outputs, Scope, Milestones, Resource Planning,
-  Budget, Risks, Issues, Product Backlog, Time Tracking and optional Sprints.
+- **Minimal, document-style workbook** (downloadable in-app, plus a 3-project
+  sample portfolio) — just three sheets with a colored, banner-titled layout
+  and a clear split between **blue "you fill in"** cells and **grey
+  "calculated automatically"** cells:
+  - **Project Brief** — charter, narrative, scope, milestones, deliverables,
+    risks and issues on one page.
+  - **Team & Budget** — team (costs & utilization auto-calculated) and budget
+    (variance auto-calculated).
+  - **Tasks** — a light task list whose Status drives the Kanban board.
 - **Validation engine** — structural, field-level and cross-sheet checks with
   a full error/warning report before anything is imported.
 - **Executive dashboard** — KPIs, project health (weighted RAG model),
   budget/variance/utilization charts, capacity heat map, milestone timeline,
   top risks & issues, and auto-generated executive recommendations.
-- **Project workspace** — tabbed views of every sheet plus computed Overview,
-  Sprint analytics (burndown, velocity) and phase-gate Governance checks.
-- **Kanban board** — Jira-style 8-column board generated from the backlog,
+- **Project workspace** — Overview (health breakdown, charter, scope),
+  Delivery, Risks & Issues, Team & Budget, Tasks and phase-gate Governance.
+- **Kanban board** — Jira-style status board generated from the Tasks sheet,
   with session-only drag & drop.
 - **Filters & global search** (Ctrl/Cmd-K) across every uploaded workbook.
 - **Reports** — ten standard reports exportable to Excel (ExcelJS) and PDF

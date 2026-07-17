@@ -26,7 +26,7 @@ import {
   BudgetByProjectChart,
   BudgetVarianceChart,
   CountByDimensionChart,
-  OutputCompletionChart,
+  DeliverableCompletionChart,
   TaskStatusChart,
   UtilizationChart,
 } from "./widgets/PortfolioCharts";
@@ -104,7 +104,7 @@ export function DashboardPage() {
               hint={`${formatMoneyCompact(portfolio.budgetRemaining)} remaining`}
             />
             <KpiTile label="Planned Hours" value={formatNumber(portfolio.totalPlannedHours)} icon={Hourglass} />
-            <KpiTile label="Logged Hours" value={formatNumber(portfolio.totalLoggedHours)} icon={Hourglass} />
+            <KpiTile label="Actual Hours" value={formatNumber(portfolio.totalActualHours)} icon={Hourglass} />
             <KpiTile label="Remaining Hours" value={formatNumber(portfolio.remainingHours)} icon={Hourglass} />
             <KpiTile
               label="Open Critical Issues"
@@ -137,11 +137,11 @@ export function DashboardPage() {
             <ChartCard title="Resource utilization" description="Actual vs planned hours per project">
               <UtilizationChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Task status" description="Backlog items across the portfolio">
+            <ChartCard title="Task status" description="Tasks across the portfolio">
               <TaskStatusChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Expected outputs completion" description="Average deliverable completion per project">
-              <OutputCompletionChart snapshots={snapshots} />
+            <ChartCard title="Deliverable completion" description="Average deliverable completion per project">
+              <DeliverableCompletionChart snapshots={snapshots} />
             </ChartCard>
             <ChartCard title="Milestone timeline" description="Delayed and upcoming milestones across projects">
               <MilestoneTimeline snapshots={snapshots} />

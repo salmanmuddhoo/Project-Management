@@ -19,6 +19,7 @@ layer that sits above delivery tools and standardizes reporting.
 | **Single source of truth = the workbook** | The app never edits project data. Derived values (health, variances, utilization) are computed, never stored. |
 | **Validate before trust** | Every workbook passes a validation engine before it enters the portfolio. Errors block import; warnings are surfaced but importable. |
 | **Standard framework** | One lifecycle (Initiation → Planning → Execution → Monitoring & Control → Closure), one template, one health model for every project. |
+| **Minimal by design** | A three-sheet, document-style workbook (Project Brief · Team & Budget · Tasks) with only the columns a PM must type. Everything else is calculated. No sprints, no time logs. |
 
 ## 2. Technology decisions
 
@@ -73,7 +74,7 @@ src/
 │   ├── excel/
 │   │   ├── schema.ts           # ★ single source of truth: sheet + column defs
 │   │   ├── parseWorkbook.ts    # SheetJS → typed Project (+ validation hooks)
-│   │   ├── template.ts         # ExcelJS: styled blank template download
+│   │   ├── template.ts         # ExcelJS: styled document-style template
 │   │   └── sampleData.ts       # ExcelJS: 3 demo workbooks for evaluation
 │   ├── validation/
 │   │   └── validateWorkbook.ts # rule engine (structure, fields, cross-checks)
@@ -97,7 +98,7 @@ src/
     ├── upload/                 # dropzone, validation report, import flow
     ├── dashboard/              # executive portfolio dashboard + filters
     ├── projects/               # project list + detail (tabbed workbook views)
-    ├── kanban/                 # Jira-style board from Product Backlog
+    ├── kanban/                 # Jira-style board from the Tasks sheet
     ├── reports/                # report centre (Excel / PDF downloads)
     └── search/                 # global search (Cmd/Ctrl-K)
 ```
@@ -109,34 +110,37 @@ the import logic.
 
 ## 5. Domain model (summary)
 
+The workbook maps to three sheets; the domain object mirrors them:
+
 ```ts
 Project
-├── charter: ProjectCharter          // 21 governance fields
-├── outputs: ExpectedOutput[]        // deliverable tracking + approval
-├── scope: ScopeDefinition           // in/out, criteria, dependencies…
-├── milestones: Milestone[]
-├── resources: ResourcePlan[]        // + derived utilization/cost variance
-├── budget: BudgetLine[]             // category planned/actual/forecast
-├── risks: Risk[]                    // probability × impact
-├── issues: Issue[]
-├── backlog: BacklogItem[]           // Jira-style tasks → Kanban
-├── timeTracking: TimeEntry[]        // imported time logs
-├── sprints: Sprint[]                // optional
+├── charter: ProjectCharter          // Brief › charter (manager facts only)
+├── scope: ScopeDefinition           // Brief › in/out/assumptions/constraints
+├── milestones: Milestone[]          // Brief › milestones
+├── deliverables: Deliverable[]      // Brief › deliverables + sign-off
+├── risks: Risk[]                    // Brief › impact × likelihood
+├── issues: Issue[]                  // Brief › issues
+├── team: TeamMember[]               // Team & Budget › team (costs derived)
+├── budget: BudgetLine[]             // Team & Budget › category planned/actual/forecast
+├── tasks: Task[]                    // Tasks › light list → Kanban
 └── meta: sourceFileName, importedAt, validation summary
 ```
 
 Everything else — `ProjectMetrics`, `HealthScore`, `GovernanceResult`,
-`PortfolioMetrics`, `Recommendation[]` — is computed on demand from the above.
+`PortfolioMetrics`, `Recommendation[]`, and the auto Excel columns (costs,
+utilization, variance, progress, health) — is computed on demand from the
+above. Task progress is count-based (Done ÷ total); there are no story points,
+sprints or time logs.
 
 ## 6. Calculation engine
 
 Per project (all pure functions):
 
-- **Schedule:** duration, elapsed %, days remaining, days delayed, forecast finish (linear progress extrapolation when no forecast provided).
+- **Schedule:** duration, elapsed %, days remaining, days delayed, forecast finish (linear progress extrapolation from delivery signals).
 - **Budget:** planned/actual/forecast totals, consumed %, variance %, category variances.
-- **Resources:** utilization % (actual vs planned hours), remaining hours, capacity, over-allocation flags (>100 % allocation or planned > available hours), cost variance.
-- **Delivery:** task completion % (weighted by story points when present), milestone completion %, expected-output completion %, delayed counts.
-- **Overall progress:** blend of reported progress and computed delivery signals.
+- **Team:** utilization % (actual vs planned hours), remaining hours, over-allocation (>100 % allocation), cost variance (rate × hours).
+- **Delivery:** task completion % (count of Done ÷ total), milestone completion %, deliverable completion %, delayed counts.
+- **Overall progress:** average of the computed delivery signals (no manager-entered progress — it is a calculated figure).
 
 **Health score** — weighted model returning 0-100 + RAG:
 
@@ -144,29 +148,30 @@ Per project (all pure functions):
 |---|---|---|
 | Schedule | 25 % | delay vs plan, forecast slip |
 | Budget | 20 % | variance & burn vs progress |
-| Resources | 15 % | over-allocation, utilization sanity |
+| Team | 15 % | over-allocation share |
 | Milestones | 10 % | overdue / completion |
-| Backlog progress | 10 % | done vs elapsed time |
-| Deliverables | 10 % | outputs complete / delayed |
-| Risks | 5 % | open high-probability × high-impact |
+| Tasks | 10 % | done vs elapsed time |
+| Deliverables | 10 % | complete / delayed |
+| Risks | 5 % | open high-impact × high-likelihood |
 | Issues | 5 % | open critical/high severity |
 
 RAG: **Green ≥ 80**, **Amber 60–79**, **Red < 60**.
 
 **Governance** — per lifecycle phase, checks the artifacts the framework
 requires (sponsor & charter completeness at Initiation; scope, milestones,
-resource & budget plans at Planning; time logging, backlog freshness at
-Execution; risk/issue management at M&C; closure criteria at Closure).
-Produces a governance score used in the Governance Report and recommendations.
+team & budget plans, deliverables at Planning; task list, actual hours, status
+at Execution; risk/issue logs, actual costs at M&C; deliverable completion &
+sign-off at Closure). Produces a governance score used in the Governance Report
+and recommendations.
 
 ## 7. Validation engine
 
 Ordered rule groups; each rule yields `error` (blocks import) or `warning`:
 
-1. **Structure** — required worksheets present, required columns present.
-2. **Charter** — mandatory fields (name, code, PM, sponsor, dates, budget), valid dates, start ≤ end, non-negative budget.
-3. **Row-level** — duplicate task/milestone/output/risk/issue IDs, invalid dates, negative numbers, allocation > 100 %, missing deliverables.
-4. **Cross-sheet** — budget sheet vs charter budget consistency, time-log task IDs unknown to backlog, sprint references unknown to sprint sheet.
+1. **Structure** — the `Project Brief` sheet and each table's columns present.
+2. **Charter** — mandatory fields (name, code, PM, dates, budget), valid dates, start ≤ end, non-negative budget; missing sponsor → warning.
+3. **Row-level** — duplicate Milestone/Deliverable/Task names, invalid dates, negative budget lines, allocation > 100 %, at least one deliverable.
+4. **Cross-sheet** — budget breakdown total vs charter budget consistency.
 
 The UI shows a full validation report per file (grouped, with sheet/row/column
 coordinates) **before** anything enters the portfolio.
@@ -193,9 +198,9 @@ theme toggle and session badge ("N projects in memory — nothing stored").
 └───────────┴──────────────────────────────────────────────────────────┘
 ```
 
-Project detail = tabs mirroring the workbook (Overview, Outputs, Scope,
-Milestones, Resources, Budget, Risks, Issues, Backlog, Time, Sprints,
-Governance). Kanban = 8 fixed columns, draggable cards, project selector.
+Project detail = six tabs (Overview, Delivery, Risks & Issues, Team & Budget,
+Tasks, Governance). Kanban = 7 status columns, draggable cards, project
+selector.
 
 ## 9. Privacy & security posture
 

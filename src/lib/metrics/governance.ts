@@ -3,8 +3,8 @@
  *
  * Every project follows Initiation → Planning → Execution → Monitoring &
  * Control → Closure. For each phase the framework requires certain artifacts
- * to exist in the workbook; the governance score is the pass-rate across all
- * phases up to (and including) the project's current phase.
+ * in the workbook; the governance score is the pass-rate across all phases up
+ * to (and including) the project's current phase.
  */
 
 import type { LifecyclePhase, Project } from "@/types/project";
@@ -18,7 +18,6 @@ export interface GovernanceCheck {
 
 export interface PhaseGovernance {
   phase: LifecyclePhase;
-  /** Whether the project has reached this phase yet. */
   applicable: boolean;
   checks: GovernanceCheck[];
   passRate: number;
@@ -26,7 +25,6 @@ export interface PhaseGovernance {
 
 export interface GovernanceResult {
   phases: PhaseGovernance[];
-  /** Pass-rate (0–100) over applicable phases only. */
   score: number;
   failedChecks: string[];
 }
@@ -51,109 +49,81 @@ export function computeGovernance(
         { label: "Project manager assigned", passed: has(charter.projectManager) },
         { label: "Business need documented", passed: has(charter.businessNeed) },
         { label: "Objectives documented", passed: has(charter.objectives) },
-        { label: "Benefits documented", passed: has(charter.benefits) },
-        {
-          label: "Budget approved",
-          passed: charter.budget != null && charter.budget > 0,
-        },
+        { label: "Budget approved", passed: charter.budget != null && charter.budget > 0 },
       ],
     },
     {
       phase: "Planning",
       checks: [
         {
-          label: "Planned start & end dates set",
-          passed:
-            charter.plannedStartDate != null && charter.plannedEndDate != null,
+          label: "Start & target end dates set",
+          passed: charter.plannedStartDate != null && charter.plannedEndDate != null,
         },
         {
-          label: "Scope defined (deliverables + out of scope)",
-          passed:
-            project.scope.deliverables.length > 0 &&
-            project.scope.outOfScope.length > 0,
+          label: "Scope defined (in & out of scope)",
+          passed: project.scope.inScope.length > 0 && project.scope.outOfScope.length > 0,
         },
         { label: "Milestones planned", passed: project.milestones.length > 0 },
-        { label: "Resource plan in place", passed: project.resources.length > 0 },
-        { label: "Budget broken down by category", passed: project.budget.length > 0 },
-        { label: "Expected outputs defined", passed: project.outputs.length > 0 },
+        { label: "Team assigned", passed: project.team.length > 0 },
+        { label: "Budget broken down", passed: project.budget.length > 0 },
+        { label: "Deliverables defined", passed: project.deliverables.length > 0 },
       ],
     },
     {
       phase: "Execution",
       checks: [
-        { label: "Product backlog maintained", passed: project.backlog.length > 0 },
-        {
-          label: "Time tracking in use",
-          passed: project.timeTracking.length > 0,
-        },
-        {
-          label: "Progress reported",
-          passed: charter.currentProgressPct != null,
-        },
+        { label: "Task list maintained", passed: project.tasks.length > 0 },
+        { label: "Actual hours tracked", passed: project.team.some((r) => r.actualHours != null) },
+        { label: "Status reported", passed: has(charter.status) },
       ],
     },
     {
       phase: "Monitoring & Control",
       checks: [
-        { label: "Risk register maintained", passed: project.risks.length > 0 },
-        { label: "Issue log maintained", passed: project.issues.length > 0 },
-        {
-          label: "Actual costs tracked",
-          passed: project.budget.some((b) => b.actual != null),
-        },
-        {
-          label: "Overall health reported",
-          passed: has(charter.overallHealth),
-        },
+        { label: "Risks logged", passed: project.risks.length > 0 },
+        { label: "Issues logged", passed: project.issues.length > 0 },
+        { label: "Actual costs tracked", passed: project.budget.some((b) => b.actual != null) },
       ],
     },
     {
       phase: "Closure",
       checks: [
         {
-          label: "All expected outputs completed",
-          passed: m.outputsTotal > 0 && m.outputsRemaining === 0,
+          label: "All deliverables completed",
+          passed: m.deliverablesTotal > 0 && m.deliverablesRemaining === 0,
         },
         {
           label: "All milestones completed",
-          passed:
-            m.milestonesTotal > 0 && m.milestonesCompleted === m.milestonesTotal,
+          passed: m.milestonesTotal > 0 && m.milestonesCompleted === m.milestonesTotal,
         },
         {
-          label: "Customer approval obtained on outputs",
+          label: "Deliverables signed off",
           passed:
-            project.outputs.length > 0 &&
-            project.outputs.every((o) =>
-              ["yes", "approved"].includes(
-                String(o.customerApproval).trim().toLowerCase(),
-              ),
+            project.deliverables.length > 0 &&
+            project.deliverables.every((o) =>
+              ["yes", "approved", "signed off"].includes(String(o.signOff).trim().toLowerCase()),
             ),
         },
-        {
-          label: "No open critical issues",
-          passed: m.openCriticalIssues === 0,
-        },
+        { label: "No open critical issues", passed: m.openCriticalIssues === 0 },
       ],
     },
   ];
 
   const phases: PhaseGovernance[] = defs.map((def, i) => {
-    const applicable = i <= phaseIndex;
     const passed = def.checks.filter((c) => c.passed).length;
     return {
       phase: def.phase,
-      applicable,
+      applicable: i <= phaseIndex,
       checks: def.checks,
       passRate: def.checks.length > 0 ? (passed / def.checks.length) * 100 : 100,
     };
   });
 
-  const applicablePhases = phases.filter((p) => p.applicable);
+  const applicable = phases.filter((p) => p.applicable);
   const score = Math.round(
-    applicablePhases.reduce((s, p) => s + p.passRate, 0) /
-      Math.max(1, applicablePhases.length),
+    applicable.reduce((s, p) => s + p.passRate, 0) / Math.max(1, applicable.length),
   );
-  const failedChecks = applicablePhases.flatMap((p) =>
+  const failedChecks = applicable.flatMap((p) =>
     p.checks.filter((c) => !c.passed).map((c) => `${p.phase}: ${c.label}`),
   );
 

@@ -160,7 +160,7 @@ export function TaskStatusChart({ snapshots }: { snapshots: ProjectSnapshot[] })
   const { theme, tick, tooltipStyle } = useCommonAxes();
   const counts = new Map<string, number>(KANBAN_COLUMNS.map((c) => [c, 0]));
   for (const s of snapshots) {
-    for (const t of s.project.backlog) {
+    for (const t of s.project.tasks) {
       counts.set(t.status, (counts.get(t.status) ?? 0) + 1);
     }
   }
@@ -180,11 +180,11 @@ export function TaskStatusChart({ snapshots }: { snapshots: ProjectSnapshot[] })
 
 // ---------------------------------------------------------------------------
 
-export function OutputCompletionChart({ snapshots }: { snapshots: ProjectSnapshot[] }) {
+export function DeliverableCompletionChart({ snapshots }: { snapshots: ProjectSnapshot[] }) {
   const { theme, tick, tooltipStyle } = useCommonAxes();
   const data = snapshots.map((s) => ({
     name: shortName(s),
-    Completion: Math.round(s.metrics.outputCompletionPct ?? 0),
+    Completion: Math.round(s.metrics.deliverableCompletionPct ?? 0),
   }));
   return (
     <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
@@ -195,7 +195,7 @@ export function OutputCompletionChart({ snapshots }: { snapshots: ProjectSnapsho
         <Tooltip
           cursor={{ fill: theme.grid, opacity: 0.4 }}
           contentStyle={tooltipStyle}
-          formatter={(value) => [`${value}%`, "Outputs complete"]}
+          formatter={(value) => [`${value}%`, "Deliverables complete"]}
         />
         <Bar dataKey="Completion" fill={theme.series[0]} barSize={14} radius={[0, 4, 4, 0]} />
       </BarChart>

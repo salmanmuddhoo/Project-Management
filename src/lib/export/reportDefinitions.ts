@@ -1,9 +1,7 @@
 /**
- * Report definitions shared by the Excel and PDF renderers.
- *
- * Each report builds one or more simple tables from the computed snapshots —
- * the renderers only decide how a table looks on paper/in a workbook, never
- * what is in it, so both formats always agree.
+ * Report definitions shared by the Excel and PDF renderers. Each report
+ * builds simple tables from the computed snapshots — the renderers only
+ * decide how a table looks, never what is in it, so both formats agree.
  */
 
 import {
@@ -29,12 +27,10 @@ export interface ReportDefinition {
 
 const num = (v: number | null | undefined) => (v == null ? "—" : Math.round(v));
 
-function projectRows(
+const projectRows = (
   snapshots: ProjectSnapshot[],
   mapper: (s: ProjectSnapshot) => Array<string | number>,
-): Array<Array<string | number>> {
-  return snapshots.map(mapper);
-}
+) => snapshots.map(mapper);
 
 export const REPORTS: ReportDefinition[] = [
   {
@@ -57,7 +53,7 @@ export const REPORTS: ReportDefinition[] = [
             ["Budget Used", formatMoney(p.budgetUsed)],
             ["Remaining Budget", formatMoney(p.budgetRemaining)],
             ["Total Planned Hours", num(p.totalPlannedHours)],
-            ["Total Logged Hours", num(p.totalLoggedHours)],
+            ["Total Actual Hours", num(p.totalActualHours)],
             ["Remaining Hours", num(p.remainingHours)],
             ["Portfolio Health", `${p.portfolioHealthScore} (${p.portfolioRag})`],
           ],
@@ -96,7 +92,7 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => [
       {
         title: "Project Status",
-        headers: ["Project", "Code", "Status", "Phase", "Planned Start", "Planned End", "Forecast End", "Elapsed %", "Progress %", "Days Remaining", "Days Delayed", "Health"],
+        headers: ["Project", "Code", "Status", "Phase", "Start", "Target End", "Forecast End", "Elapsed %", "Progress %", "Days Remaining", "Days Delayed", "Health"],
         rows: projectRows(snapshots, (s) => [
           s.project.charter.projectName,
           s.project.charter.projectCode,
@@ -121,17 +117,10 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => [
       {
         title: "Risks",
-        headers: ["Project", "Risk ID", "Description", "Probability", "Impact", "Mitigation", "Owner", "Status"],
+        headers: ["Project", "Risk", "Impact", "Likelihood", "Mitigation", "Owner", "Status"],
         rows: snapshots.flatMap((s) =>
           s.project.risks.map((r) => [
-            s.project.charter.projectName,
-            r.riskId,
-            r.description,
-            r.probability,
-            r.impact,
-            r.mitigation,
-            r.owner,
-            r.status,
+            s.project.charter.projectName, r.risk, r.impact, r.likelihood, r.mitigation, r.owner, r.status,
           ]),
         ),
       },
@@ -144,17 +133,10 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => [
       {
         title: "Issues",
-        headers: ["Project", "Issue ID", "Description", "Severity", "Owner", "Raised", "Target", "Status"],
+        headers: ["Project", "Issue", "Severity", "Owner", "Target", "Status"],
         rows: snapshots.flatMap((s) =>
           s.project.issues.map((i) => [
-            s.project.charter.projectName,
-            i.issueId,
-            i.description,
-            i.severity,
-            i.owner,
-            formatDate(i.raisedDate),
-            formatDate(i.targetDate),
-            i.status,
+            s.project.charter.projectName, i.issue, i.severity, i.owner, formatDate(i.targetDate), i.status,
           ]),
         ),
       },
@@ -180,15 +162,10 @@ export const REPORTS: ReportDefinition[] = [
       },
       {
         title: "Budget by Category",
-        headers: ["Project", "Category", "Planned", "Actual", "Forecast", "Variance"],
+        headers: ["Project", "Category", "Planned", "Actual", "Forecast"],
         rows: snapshots.flatMap((s) =>
           s.project.budget.map((b) => [
-            s.project.charter.projectName,
-            b.category,
-            formatMoney(b.planned),
-            formatMoney(b.actual),
-            formatMoney(b.forecast),
-            formatMoney(b.variance),
+            s.project.charter.projectName, b.category, formatMoney(b.planned), formatMoney(b.actual), formatMoney(b.forecast),
           ]),
         ),
       },
@@ -196,37 +173,28 @@ export const REPORTS: ReportDefinition[] = [
   },
   {
     key: "resources",
-    title: "Resource Report",
-    description: "Utilization, capacity and cost variance per resource.",
+    title: "Team Report",
+    description: "Utilization, allocation and cost variance per person.",
     build: (snapshots) => [
       {
-        title: "Resources by Project",
-        headers: ["Project", "Employee", "Role", "Allocation %", "Available", "Planned", "Actual", "Remaining", "Utilization %", "Cost Variance", "Over-allocated"],
+        title: "Team by Project",
+        headers: ["Project", "Name", "Role", "Allocation %", "Planned Hrs", "Actual Hrs", "Utilization %", "Planned Cost", "Actual Cost", "Cost Variance", "Over-allocated"],
         rows: snapshots.flatMap((s) =>
-          s.metrics.resourceInsights.map((r) => [
-            s.project.charter.projectName,
-            r.employee,
-            r.role,
-            num(r.allocationPct),
-            num(r.availableHours),
-            num(r.plannedHours),
-            num(r.actualHours),
-            num(r.hoursRemaining),
+          s.metrics.teamInsights.map((r) => [
+            s.project.charter.projectName, r.name, r.role,
+            num(r.allocationPct), num(r.plannedHours), num(r.actualHours),
             r.utilizationPct == null ? "—" : formatPct(r.utilizationPct),
-            formatMoney(r.costVariance),
+            formatMoney(r.plannedCost), formatMoney(r.actualCost), formatMoney(r.costVariance),
             r.overAllocated ? "YES" : "",
           ]),
         ),
       },
       {
         title: "Cross-project Capacity",
-        headers: ["Employee", "Department", "Total Allocation %", "Projects", "Over-allocated"],
+        headers: ["Name", "Role", "Total Allocation %", "Projects", "Over-allocated"],
         rows: computeCapacity(snapshots).map((c) => [
-          c.employee,
-          c.department,
-          Math.round(c.totalAllocationPct),
-          c.projects.map((p) => p.projectName).join(", "),
-          c.overAllocated ? "YES" : "",
+          c.name, c.role, Math.round(c.totalAllocationPct),
+          c.projects.map((p) => p.projectName).join(", "), c.overAllocated ? "YES" : "",
         ]),
       },
     ],
@@ -238,16 +206,10 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => [
       {
         title: "Milestones",
-        headers: ["Project", "Milestone", "Planned", "Actual", "Owner", "Progress %", "Status"],
+        headers: ["Project", "Milestone", "Owner", "Planned", "Actual", "Status"],
         rows: snapshots.flatMap((s) =>
           s.project.milestones.map((m) => [
-            s.project.charter.projectName,
-            m.milestone,
-            formatDate(m.plannedDate),
-            formatDate(m.actualDate),
-            m.owner,
-            num(m.progressPct),
-            m.status,
+            s.project.charter.projectName, m.milestone, m.owner, formatDate(m.plannedDate), formatDate(m.actualDate), m.status,
           ]),
         ),
       },
@@ -256,49 +218,30 @@ export const REPORTS: ReportDefinition[] = [
   {
     key: "tasks",
     title: "Task Report",
-    description: "Product backlog across all projects.",
+    description: "Task list across all projects.",
     build: (snapshots) => [
       {
         title: "Tasks",
-        headers: ["Project", "Task ID", "Title", "Epic", "Priority", "Points", "Est. Hrs", "Rem. Hrs", "Sprint", "Assignee", "Status", "Due"],
+        headers: ["Project", "Task", "Owner", "Priority", "Due", "Status"],
         rows: snapshots.flatMap((s) =>
-          s.project.backlog.map((t) => [
-            s.project.charter.projectName,
-            t.taskId,
-            t.taskTitle,
-            t.epic,
-            t.priority,
-            t.storyPoints ?? "—",
-            t.estimatedHours ?? "—",
-            t.remainingHours ?? "—",
-            t.sprint,
-            t.assignee,
-            t.status,
-            formatDate(t.dueDate),
+          s.project.tasks.map((t) => [
+            s.project.charter.projectName, t.title, t.owner, t.priority, formatDate(t.dueDate), t.status,
           ]),
         ),
       },
     ],
   },
   {
-    key: "outputs",
-    title: "Expected Outputs Report",
-    description: "Deliverable tracking and customer approval status.",
+    key: "deliverables",
+    title: "Deliverables Report",
+    description: "Deliverable tracking and sign-off status.",
     build: (snapshots) => [
       {
-        title: "Expected Outputs",
-        headers: ["Project", "Output ID", "Deliverable", "Owner", "Planned", "Actual", "Completion %", "Status", "Approval"],
+        title: "Deliverables",
+        headers: ["Project", "Deliverable", "Owner", "Due", "Completion %", "Status", "Sign-off"],
         rows: snapshots.flatMap((s) =>
-          s.project.outputs.map((o) => [
-            s.project.charter.projectName,
-            o.outputId,
-            o.deliverable,
-            o.owner,
-            formatDate(o.plannedDeliveryDate),
-            formatDate(o.actualDeliveryDate),
-            num(o.completionPct),
-            o.status,
-            o.customerApproval,
+          s.project.deliverables.map((o) => [
+            s.project.charter.projectName, o.deliverable, o.owner, formatDate(o.dueDate), num(o.completionPct), o.status, o.signOff,
           ]),
         ),
       },
@@ -327,10 +270,7 @@ export const REPORTS: ReportDefinition[] = [
             .filter((p) => p.applicable)
             .flatMap((p) =>
               p.checks.map((c) => [
-                s.project.charter.projectName,
-                p.phase,
-                c.label,
-                c.passed ? "PASS" : "FAIL",
+                s.project.charter.projectName, p.phase, c.label, c.passed ? "PASS" : "FAIL",
               ]),
             ),
         ),
