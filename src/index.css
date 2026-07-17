@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens (shadcn/ui convention: HSL triplets consumed by
+ * tailwind.config.js). Neutrals and the primary blue follow the validated
+ * chart palette so UI chrome and data visuals read as one system.
+ */
+@layer base {
+  :root {
+    --background: 60 14% 97%;
+    --foreground: 0 0% 4%;
+    --card: 60 17% 99%;
+    --card-foreground: 0 0% 4%;
+    --popover: 60 17% 99%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 212 67% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 51 12% 93%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 51 12% 93%;
+    --muted-foreground: 40 3% 32%;
+    --accent: 212 67% 95%;
+    --accent-foreground: 212 67% 30%;
+    --destructive: 0 73% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 50 13% 87%;
+    --input: 50 13% 84%;
+    --ring: 212 67% 50%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 0 0% 5%;
+    --foreground: 0 0% 100%;
+    --card: 60 2% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 60 2% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 212 75% 56%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 60 2% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 60 2% 15%;
+    --muted-foreground: 49 9% 74%;
+    --accent: 212 40% 18%;
+    --accent-foreground: 212 75% 80%;
+    --destructive: 0 66% 65%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 60 2% 17%;
+    --input: 60 2% 22%;
+    --ring: 212 75% 56%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-muted-foreground/30;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  /* Tabular figures for columns of numbers (tables, axis ticks). */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
