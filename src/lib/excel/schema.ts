@@ -1,221 +1,190 @@
 /**
  * Single source of truth for the standard workbook layout.
  *
- * The parser (`parseWorkbook.ts`), the validation engine
- * (`validateWorkbook.ts`) and the template generator (`template.ts`) all read
- * from these definitions, so the downloadable template can never drift from
- * what the importer accepts.
+ * The parser, the validation engine and the template generator all read from
+ * these definitions, so the downloadable template can never drift from what
+ * the importer accepts.
+ *
+ * The workbook has three sheets:
+ *   • "Project Brief"  — a document: charter + scope + milestones +
+ *                        deliverables + risks + issues
+ *   • "Team & Budget"  — team table + budget table
+ *   • "Tasks"          — a light task list (feeds the Kanban board)
+ *
+ * Columns flagged `auto` are CALCULATED (variance, costs, utilization,
+ * progress, health). They are rendered as locked/greyed cells in the
+ * template and are ignored on import — the app recomputes them.
  */
 
 export const SHEETS = {
-  charter: "Project Charter",
-  outputs: "Expected Outputs",
-  scope: "Scope",
-  milestones: "Milestones",
-  resources: "Resource Planning",
-  budget: "Budget",
-  risks: "Risks",
-  issues: "Issues",
-  backlog: "Product Backlog",
-  timeTracking: "Time Tracking",
-  sprints: "Sprints",
+  brief: "Project Brief",
+  teamBudget: "Team & Budget",
+  tasks: "Tasks",
 } as const;
 
 export type SheetKey = keyof typeof SHEETS;
 
-/** Sprints is the only optional worksheet. */
-export const REQUIRED_SHEETS: SheetKey[] = [
-  "charter",
-  "outputs",
-  "scope",
-  "milestones",
-  "resources",
-  "budget",
-  "risks",
-  "issues",
-  "backlog",
-  "timeTracking",
-];
+export const REQUIRED_SHEETS: SheetKey[] = ["brief"];
 
 export interface ColumnDef {
   /** Exact header text used in the template. */
   header: string;
   /** Property name on the parsed row object. */
   key: string;
+  type: "text" | "number" | "percent" | "date";
   /** Missing value ⇒ validation error on the row. */
   mandatory?: boolean;
-  type: "text" | "number" | "percent" | "date";
+  /** Calculated column — greyed in the template, ignored on import. */
+  auto?: boolean;
 }
 
 const col = (
   header: string,
   key: string,
   type: ColumnDef["type"],
-  mandatory = false,
-): ColumnDef => ({ header, key, type, mandatory });
+  opts: { mandatory?: boolean; auto?: boolean } = {},
+): ColumnDef => ({ header, key, type, ...opts });
 
-/** Charter is a key/value sheet: Field | Value. Order = template order. */
+// ---------------------------------------------------------------------------
+// Project Brief — charter (key/value)
+// ---------------------------------------------------------------------------
+
 export const CHARTER_FIELDS: ColumnDef[] = [
-  col("Project Name", "projectName", "text", true),
-  col("Project Code", "projectCode", "text", true),
+  col("Project Name", "projectName", "text", { mandatory: true }),
+  col("Project Code", "projectCode", "text", { mandatory: true }),
   col("Business Unit", "businessUnit", "text"),
-  col("Project Manager", "projectManager", "text", true),
-  col("Sponsor", "sponsor", "text", true),
+  col("Project Manager", "projectManager", "text", { mandatory: true }),
+  col("Sponsor", "sponsor", "text"),
   col("Priority", "priority", "text"),
   col("Status", "status", "text"),
   col("Current Phase", "currentPhase", "text"),
+  col("Funding Type", "fundingType", "text"),
+  col("Budget", "budget", "number", { mandatory: true }),
+  col("Start Date", "plannedStartDate", "date", { mandatory: true }),
+  col("Target End Date", "plannedEndDate", "date", { mandatory: true }),
+  col("Actual Start Date", "actualStartDate", "date"),
+];
+
+/** Charter figures the app calculates — shown greyed, never entered. */
+export const CHARTER_AUTO_FIELDS: ColumnDef[] = [
+  col("Overall Progress", "overallProgress", "percent", { auto: true }),
+  col("Overall Health", "overallHealth", "text", { auto: true }),
+  col("Forecast End Date", "forecastEnd", "date", { auto: true }),
+];
+
+/** Charter narrative (label above, wrapped free-text below). */
+export const NARRATIVE_FIELDS: ColumnDef[] = [
   col("Description", "description", "text"),
   col("Business Need", "businessNeed", "text"),
   col("Objectives", "objectives", "text"),
   col("Benefits", "benefits", "text"),
-  col("Funding Type", "fundingType", "text"),
-  col("Budget", "budget", "number", true),
-  col("Funding Amount", "fundingAmount", "number"),
-  col("Planned Start Date", "plannedStartDate", "date", true),
-  col("Planned End Date", "plannedEndDate", "date", true),
-  col("Actual Start Date", "actualStartDate", "date"),
-  col("Forecast End Date", "forecastEndDate", "date"),
-  col("Current Progress %", "currentProgressPct", "percent"),
-  col("Overall Health", "overallHealth", "text"),
 ];
 
-export const OUTPUT_COLUMNS: ColumnDef[] = [
-  col("Output ID", "outputId", "text", true),
-  col("Deliverable", "deliverable", "text", true),
-  col("Description", "description", "text"),
-  col("Owner", "owner", "text"),
-  col("Acceptance Criteria", "acceptanceCriteria", "text"),
-  col("Planned Delivery Date", "plannedDeliveryDate", "date"),
-  col("Actual Delivery Date", "actualDeliveryDate", "date"),
-  col("Completion %", "completionPct", "percent"),
-  col("Status", "status", "text"),
-  col("Customer Approval", "customerApproval", "text"),
-];
-
-/** Scope is a key/value sheet; each key holds one item per line. */
+/** Project Brief — scope (key / multi-line value). */
 export const SCOPE_FIELDS: ColumnDef[] = [
-  col("Deliverables", "deliverables", "text"),
+  col("In Scope", "inScope", "text"),
   col("Out of Scope", "outOfScope", "text"),
-  col("Success Criteria", "successCriteria", "text"),
-  col("Dependencies", "dependencies", "text"),
-  col("Constraints", "constraints", "text"),
   col("Assumptions", "assumptions", "text"),
+  col("Constraints", "constraints", "text"),
 ];
+
+// ---------------------------------------------------------------------------
+// Tables
+// ---------------------------------------------------------------------------
 
 export const MILESTONE_COLUMNS: ColumnDef[] = [
-  col("Milestone", "milestone", "text", true),
-  col("Description", "description", "text"),
-  col("Planned Date", "plannedDate", "date", true),
-  col("Actual Date", "actualDate", "date"),
+  col("Milestone", "milestone", "text", { mandatory: true }),
   col("Owner", "owner", "text"),
-  col("Progress %", "progressPct", "percent"),
+  col("Planned Date", "plannedDate", "date", { mandatory: true }),
+  col("Actual Date", "actualDate", "date"),
   col("Status", "status", "text"),
 ];
 
-export const RESOURCE_COLUMNS: ColumnDef[] = [
-  col("Employee", "employee", "text", true),
-  col("Role", "role", "text"),
-  col("Department", "department", "text"),
-  col("Allocation %", "allocationPct", "percent"),
-  col("Available Hours", "availableHours", "number"),
-  col("Planned Hours", "plannedHours", "number"),
-  col("Actual Hours", "actualHours", "number"),
-  col("Remaining Hours", "remainingHours", "number"),
-  col("Hourly Rate", "hourlyRate", "number"),
-  col("Planned Cost", "plannedCost", "number"),
-  col("Actual Cost", "actualCost", "number"),
-];
-
-export const BUDGET_COLUMNS: ColumnDef[] = [
-  col("Category", "category", "text", true),
-  col("Planned", "planned", "number"),
-  col("Actual", "actual", "number"),
-  col("Forecast", "forecast", "number"),
-  col("Variance", "variance", "number"),
+export const DELIVERABLE_COLUMNS: ColumnDef[] = [
+  col("Deliverable", "deliverable", "text", { mandatory: true }),
+  col("Owner", "owner", "text"),
+  col("Due Date", "dueDate", "date"),
+  col("Completion %", "completionPct", "percent"),
+  col("Status", "status", "text"),
+  col("Sign-off", "signOff", "text"),
 ];
 
 export const RISK_COLUMNS: ColumnDef[] = [
-  col("Risk ID", "riskId", "text", true),
-  col("Description", "description", "text", true),
-  col("Probability", "probability", "text"),
+  col("Risk", "risk", "text", { mandatory: true }),
   col("Impact", "impact", "text"),
-  col("Mitigation", "mitigation", "text"),
+  col("Likelihood", "likelihood", "text"),
   col("Owner", "owner", "text"),
+  col("Mitigation", "mitigation", "text"),
   col("Status", "status", "text"),
 ];
 
 export const ISSUE_COLUMNS: ColumnDef[] = [
-  col("Issue ID", "issueId", "text", true),
-  col("Description", "description", "text", true),
+  col("Issue", "issue", "text", { mandatory: true }),
   col("Severity", "severity", "text"),
   col("Owner", "owner", "text"),
-  col("Raised Date", "raisedDate", "date"),
   col("Target Date", "targetDate", "date"),
   col("Status", "status", "text"),
 ];
 
-export const BACKLOG_COLUMNS: ColumnDef[] = [
-  col("Task ID", "taskId", "text", true),
-  col("Epic", "epic", "text"),
-  col("Feature", "feature", "text"),
-  col("User Story", "userStory", "text"),
-  col("Task Title", "taskTitle", "text", true),
-  col("Description", "description", "text"),
-  col("Priority", "priority", "text"),
-  col("Story Points", "storyPoints", "number"),
-  col("Estimated Hours", "estimatedHours", "number"),
-  col("Remaining Hours", "remainingHours", "number"),
+export const TEAM_COLUMNS: ColumnDef[] = [
+  col("Name", "name", "text", { mandatory: true }),
+  col("Role", "role", "text"),
+  col("Allocation %", "allocationPct", "percent"),
+  col("Planned Hours", "plannedHours", "number"),
   col("Actual Hours", "actualHours", "number"),
-  col("Sprint", "sprint", "text"),
-  col("Assignee", "assignee", "text"),
-  col("Status", "status", "text"),
-  col("Dependencies", "dependencies", "text"),
-  col("Created Date", "createdDate", "date"),
-  col("Start Date", "startDate", "date"),
+  col("Hourly Rate", "hourlyRate", "number"),
+  col("Planned Cost", "plannedCost", "number", { auto: true }),
+  col("Actual Cost", "actualCost", "number", { auto: true }),
+  col("Utilization %", "utilization", "percent", { auto: true }),
+];
+
+export const BUDGET_COLUMNS: ColumnDef[] = [
+  col("Category", "category", "text", { mandatory: true }),
+  col("Planned", "planned", "number"),
+  col("Actual", "actual", "number"),
+  col("Forecast", "forecast", "number"),
+  col("Variance", "variance", "number", { auto: true }),
+];
+
+export const TASK_COLUMNS: ColumnDef[] = [
+  col("Task", "title", "text", { mandatory: true }),
+  col("Owner", "owner", "text"),
+  col("Priority", "priority", "text"),
   col("Due Date", "dueDate", "date"),
-  col("Completed Date", "completedDate", "date"),
-  col("Tags", "tags", "text"),
-  col("Comments", "comments", "text"),
+  col("Status", "status", "text"),
 ];
-
-export const TIME_COLUMNS: ColumnDef[] = [
-  col("Employee", "employee", "text", true),
-  col("Date", "date", "date", true),
-  col("Task ID", "taskId", "text"),
-  col("Hours", "hours", "number", true),
-  col("Activity", "activity", "text"),
-  col("Project Phase", "projectPhase", "text"),
-];
-
-export const SPRINT_COLUMNS: ColumnDef[] = [
-  col("Sprint Number", "sprintNumber", "text", true),
-  col("Sprint Goal", "sprintGoal", "text"),
-  col("Start Date", "startDate", "date"),
-  col("End Date", "endDate", "date"),
-  col("Capacity", "capacity", "number"),
-  col("Committed Hours", "committedHours", "number"),
-  col("Completed Hours", "completedHours", "number"),
-  col("Velocity", "velocity", "number"),
-  col("Completion %", "completionPct", "percent"),
-];
-
-/** Column definitions per tabular sheet (charter/scope are key/value). */
-export const TABULAR_SHEETS: Partial<Record<SheetKey, ColumnDef[]>> = {
-  outputs: OUTPUT_COLUMNS,
-  milestones: MILESTONE_COLUMNS,
-  resources: RESOURCE_COLUMNS,
-  budget: BUDGET_COLUMNS,
-  risks: RISK_COLUMNS,
-  issues: ISSUE_COLUMNS,
-  backlog: BACKLOG_COLUMNS,
-  timeTracking: TIME_COLUMNS,
-  sprints: SPRINT_COLUMNS,
-};
 
 /**
- * Header comparison: case-insensitive, whitespace-tolerant, and blind to the
- * trailing "*" the template uses to mark mandatory columns.
+ * Tables and the sheet they live on, keyed by the first (identifying) header
+ * — the parser locates each table by scanning column A for this header.
  */
+export interface TableSpec {
+  key:
+    | "milestones"
+    | "deliverables"
+    | "risks"
+    | "issues"
+    | "team"
+    | "budget"
+    | "tasks";
+  sheet: SheetKey;
+  columns: ColumnDef[];
+}
+
+export const TABLE_SPECS: TableSpec[] = [
+  { key: "milestones", sheet: "brief", columns: MILESTONE_COLUMNS },
+  { key: "deliverables", sheet: "brief", columns: DELIVERABLE_COLUMNS },
+  { key: "risks", sheet: "brief", columns: RISK_COLUMNS },
+  { key: "issues", sheet: "brief", columns: ISSUE_COLUMNS },
+  { key: "team", sheet: "teamBudget", columns: TEAM_COLUMNS },
+  { key: "budget", sheet: "teamBudget", columns: BUDGET_COLUMNS },
+  { key: "tasks", sheet: "tasks", columns: TASK_COLUMNS },
+];
+
+/** First-column header text used to locate every table on a shared sheet. */
+export const TABLE_MARKERS = TABLE_SPECS.map((t) => t.columns[0].header);
+
+/** Header comparison: case-insensitive, whitespace- and asterisk-tolerant. */
 export function normalizeHeader(header: unknown): string {
   return String(header ?? "")
     .trim()

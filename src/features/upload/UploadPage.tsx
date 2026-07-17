@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   buildProject,
+  emptyTables,
   readWorkbook,
   type RawWorkbook,
 } from "@/lib/excel/parseWorkbook";
@@ -64,7 +65,7 @@ export function UploadPage() {
             presentSheets: [],
             charter: {},
             scope: {},
-            tables: {},
+            tables: emptyTables(),
             coercionIssues: [],
           },
           report: {

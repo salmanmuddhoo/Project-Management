@@ -1,10 +1,11 @@
 /**
  * Domain model for the standardized project workbook.
  *
- * These interfaces mirror the Excel template one-to-one (see
- * docs/EXCEL_TEMPLATE.md). Raw workbook data is parsed into a `Project`;
- * every derived figure (health, variance, utilization…) is computed by pure
- * functions in `src/lib/metrics` and is intentionally NOT part of this model.
+ * The workbook is deliberately small — three sheets (Project Brief, Team &
+ * Budget, Tasks) with minimal columns (see docs/EXCEL_TEMPLATE.md). Manager
+ * input is the ONLY thing modelled here; every derived figure (health,
+ * progress, variance, utilization…) is computed by pure functions in
+ * `src/lib/metrics` and is intentionally NOT part of this model.
  */
 
 export type Priority = "Critical" | "High" | "Medium" | "Low" | "";
@@ -39,7 +40,7 @@ export type RagStatus = "Green" | "Amber" | "Red";
 
 export type FundingType = "CAPEX" | "OPEX" | "Mixed" | "";
 
-/** Sheet 1 — Project Charter (key/value sheet). */
+/** Project Brief › Charter block (manager-entered facts only). */
 export interface ProjectCharter {
   projectName: string;
   projectCode: string;
@@ -49,181 +50,119 @@ export interface ProjectCharter {
   priority: Priority;
   status: ProjectStatus;
   currentPhase: LifecyclePhase;
+  fundingType: FundingType;
+  budget: number | null;
+  plannedStartDate: Date | null;
+  /** "Target End Date" in the sheet. */
+  plannedEndDate: Date | null;
+  actualStartDate: Date | null;
   description: string;
   businessNeed: string;
   objectives: string;
   benefits: string;
-  fundingType: FundingType;
-  budget: number | null;
-  fundingAmount: number | null;
-  plannedStartDate: Date | null;
-  plannedEndDate: Date | null;
-  actualStartDate: Date | null;
-  forecastEndDate: Date | null;
-  /** Manager-reported progress, normalized to 0–100. */
-  currentProgressPct: number | null;
-  /** Manager-reported health; the computed score may disagree. */
-  overallHealth: RagStatus | "";
 }
 
-/** Sheet 2 — Expected Outputs. */
-export interface ExpectedOutput {
-  outputId: string;
-  deliverable: string;
-  description: string;
-  owner: string;
-  acceptanceCriteria: string;
-  plannedDeliveryDate: Date | null;
-  actualDeliveryDate: Date | null;
-  completionPct: number | null;
-  status: string;
-  customerApproval: string;
-}
-
-/** Sheet 3 — Scope (key/multi-line value sheet). */
+/** Project Brief › Scope block (one item per line). */
 export interface ScopeDefinition {
-  deliverables: string[];
+  inScope: string[];
   outOfScope: string[];
-  successCriteria: string[];
-  dependencies: string[];
-  constraints: string[];
   assumptions: string[];
+  constraints: string[];
 }
 
-/** Sheet 4 — Milestones. */
+/** Project Brief › Milestones table. */
 export interface Milestone {
   milestone: string;
-  description: string;
+  owner: string;
   plannedDate: Date | null;
   actualDate: Date | null;
-  owner: string;
-  progressPct: number | null;
   status: string;
 }
 
-/** Sheet 5 — Resource Planning. */
-export interface ResourcePlan {
-  employee: string;
-  role: string;
-  department: string;
-  allocationPct: number | null;
-  availableHours: number | null;
-  plannedHours: number | null;
-  actualHours: number | null;
-  remainingHours: number | null;
-  hourlyRate: number | null;
-  plannedCost: number | null;
-  actualCost: number | null;
+/** Project Brief › Deliverables table. */
+export interface Deliverable {
+  deliverable: string;
+  owner: string;
+  dueDate: Date | null;
+  completionPct: number | null;
+  status: string;
+  /** Customer/business sign-off (Yes/No/Pending). */
+  signOff: string;
 }
 
-/** Sheet 6 — Budget. */
+/** Project Brief › Risks table. */
+export interface Risk {
+  risk: string;
+  impact: string;
+  likelihood: string;
+  owner: string;
+  mitigation: string;
+  status: string;
+}
+
+/** Project Brief › Issues table. */
+export interface Issue {
+  issue: string;
+  severity: string;
+  owner: string;
+  targetDate: Date | null;
+  status: string;
+}
+
+/** Team & Budget › Team table (costs are auto-derived, not entered). */
+export interface TeamMember {
+  name: string;
+  role: string;
+  allocationPct: number | null;
+  plannedHours: number | null;
+  actualHours: number | null;
+  hourlyRate: number | null;
+}
+
+/** Team & Budget › Budget table (variance is auto-derived). */
 export interface BudgetLine {
   category: string;
   planned: number | null;
   actual: number | null;
   forecast: number | null;
-  variance: number | null;
 }
 
-/** Sheet 7 — Risks. */
-export interface Risk {
-  riskId: string;
-  description: string;
-  probability: string;
-  impact: string;
-  mitigation: string;
-  owner: string;
-  status: string;
-}
-
-/** Sheet 8 — Issues. */
-export interface Issue {
-  issueId: string;
-  description: string;
-  severity: string;
-  owner: string;
-  raisedDate: Date | null;
-  targetDate: Date | null;
-  status: string;
-}
-
-/** Kanban columns, in board order. Backlog `Status` maps onto these. */
+/** Kanban columns, in board order. A task's Status maps onto these. */
 export const KANBAN_COLUMNS = [
   "Backlog",
   "Ready",
   "To Do",
   "In Progress",
   "Blocked",
-  "Testing",
   "Review",
   "Done",
 ] as const;
 
 export type KanbanColumn = (typeof KANBAN_COLUMNS)[number];
 
-/** Sheet 9 — Product Backlog. */
-export interface BacklogItem {
-  taskId: string;
-  epic: string;
-  feature: string;
-  userStory: string;
-  taskTitle: string;
-  description: string;
+/** Tasks sheet — a light task list (no sprints, points or hours). */
+export interface Task {
+  /** Stable id within the workbook, derived on import (e.g. "T3"). */
+  id: string;
+  title: string;
+  owner: string;
   priority: Priority;
-  storyPoints: number | null;
-  estimatedHours: number | null;
-  remainingHours: number | null;
-  actualHours: number | null;
-  sprint: string;
-  assignee: string;
-  status: KanbanColumn;
-  dependencies: string;
-  createdDate: Date | null;
-  startDate: Date | null;
   dueDate: Date | null;
-  completedDate: Date | null;
-  tags: string;
-  comments: string;
-}
-
-/** Sheet 10 — Time Tracking. */
-export interface TimeEntry {
-  employee: string;
-  date: Date | null;
-  taskId: string;
-  hours: number | null;
-  activity: string;
-  projectPhase: string;
-}
-
-/** Sheet 11 — Sprints (optional). */
-export interface Sprint {
-  sprintNumber: string;
-  sprintGoal: string;
-  startDate: Date | null;
-  endDate: Date | null;
-  capacity: number | null;
-  committedHours: number | null;
-  completedHours: number | null;
-  velocity: number | null;
-  completionPct: number | null;
+  status: KanbanColumn;
 }
 
 /** A fully parsed, validated project workbook held in memory. */
 export interface Project {
-  /** Stable id for the session (derived from code + file name). */
   id: string;
   charter: ProjectCharter;
-  outputs: ExpectedOutput[];
   scope: ScopeDefinition;
   milestones: Milestone[];
-  resources: ResourcePlan[];
-  budget: BudgetLine[];
+  deliverables: Deliverable[];
   risks: Risk[];
   issues: Issue[];
-  backlog: BacklogItem[];
-  timeTracking: TimeEntry[];
-  sprints: Sprint[];
+  team: TeamMember[];
+  budget: BudgetLine[];
+  tasks: Task[];
   meta: {
     sourceFileName: string;
     importedAt: Date;

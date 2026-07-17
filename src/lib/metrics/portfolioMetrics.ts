@@ -18,10 +18,7 @@ export interface ProjectSnapshot {
   governance: GovernanceResult;
 }
 
-export function buildSnapshot(
-  project: Project,
-  today: Date = new Date(),
-): ProjectSnapshot {
+export function buildSnapshot(project: Project, today: Date = new Date()): ProjectSnapshot {
   const metrics = computeProjectMetrics(project, today);
   return {
     project,
@@ -43,62 +40,35 @@ export interface PortfolioMetrics {
   budgetRemaining: number;
 
   totalPlannedHours: number;
-  totalLoggedHours: number;
+  totalActualHours: number;
   remainingHours: number;
 
-  /** Weighted average health (by budget when available, else equal). */
   portfolioHealthScore: number;
   portfolioRag: RagStatus;
 }
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export function computePortfolioMetrics(
-  snapshots: ProjectSnapshot[],
-): PortfolioMetrics {
-  const completed = snapshots.filter(
-    (s) => norm(s.project.charter.status) === "completed",
-  ).length;
+export function computePortfolioMetrics(snapshots: ProjectSnapshot[]): PortfolioMetrics {
+  const completed = snapshots.filter((s) => norm(s.project.charter.status) === "completed").length;
   const delayed = snapshots.filter(
-    (s) =>
-      norm(s.project.charter.status) === "delayed" || s.metrics.daysDelayed > 0,
+    (s) => norm(s.project.charter.status) === "delayed" || s.metrics.daysDelayed > 0,
   ).length;
   const atRisk = snapshots.filter(
-    (s) =>
-      s.health.rag === "Red" || norm(s.project.charter.status) === "at risk",
+    (s) => s.health.rag === "Red" || norm(s.project.charter.status) === "at risk",
   ).length;
   const active = snapshots.filter(
     (s) => !["completed", "cancelled"].includes(norm(s.project.charter.status)),
   );
-  const onTrack = active.filter(
-    (s) => s.health.rag === "Green" && s.metrics.daysDelayed === 0,
-  ).length;
+  const onTrack = active.filter((s) => s.health.rag === "Green" && s.metrics.daysDelayed === 0).length;
 
-  const totalBudget = snapshots.reduce(
-    (sum, s) => sum + s.metrics.budgetPlanned,
-    0,
-  );
-  const budgetUsed = snapshots.reduce(
-    (sum, s) => sum + s.metrics.budgetActual,
-    0,
-  );
+  const totalBudget = snapshots.reduce((sum, s) => sum + s.metrics.budgetPlanned, 0);
+  const budgetUsed = snapshots.reduce((sum, s) => sum + s.metrics.budgetActual, 0);
+  const totalPlannedHours = snapshots.reduce((sum, s) => sum + s.metrics.totalPlannedHours, 0);
+  const totalActualHours = snapshots.reduce((sum, s) => sum + s.metrics.totalActualHours, 0);
+  const remainingHours = snapshots.reduce((sum, s) => sum + s.metrics.totalRemainingHours, 0);
 
-  const totalPlannedHours = snapshots.reduce(
-    (sum, s) => sum + s.metrics.totalPlannedHours,
-    0,
-  );
-  const totalLoggedHours = snapshots.reduce(
-    (sum, s) => sum + Math.max(s.metrics.loggedHours, s.metrics.totalActualHours),
-    0,
-  );
-  const remainingHours = snapshots.reduce(
-    (sum, s) => sum + s.metrics.totalRemainingHours,
-    0,
-  );
-
-  // Budget-weighted health: big projects move the portfolio needle more.
-  const weightOf = (s: ProjectSnapshot) =>
-    s.metrics.budgetPlanned > 0 ? s.metrics.budgetPlanned : 1;
+  const weightOf = (s: ProjectSnapshot) => (s.metrics.budgetPlanned > 0 ? s.metrics.budgetPlanned : 1);
   const totalWeight = snapshots.reduce((sum, s) => sum + weightOf(s), 0);
   const portfolioHealthScore =
     snapshots.length > 0
@@ -118,22 +88,18 @@ export function computePortfolioMetrics(
     budgetUsed,
     budgetRemaining: totalBudget - budgetUsed,
     totalPlannedHours,
-    totalLoggedHours,
+    totalActualHours,
     remainingHours,
     portfolioHealthScore,
     portfolioRag: ragOf(portfolioHealthScore),
   };
 }
 
-/**
- * Cross-project resource capacity view for the heat map: one row per
- * employee, aggregated allocation across every project they appear on.
- */
+/** Cross-project capacity view for the heat map: one row per person. */
 export interface CapacityRow {
-  employee: string;
-  department: string;
+  name: string;
+  role: string;
   totalAllocationPct: number;
-  totalAvailableHours: number;
   totalPlannedHours: number;
   totalActualHours: number;
   projects: Array<{ projectName: string; allocationPct: number }>;
@@ -141,27 +107,25 @@ export interface CapacityRow {
 }
 
 export function computeCapacity(snapshots: ProjectSnapshot[]): CapacityRow[] {
-  const byEmployee = new Map<string, CapacityRow>();
+  const byPerson = new Map<string, CapacityRow>();
   for (const s of snapshots) {
-    for (const r of s.metrics.resourceInsights) {
-      const key = norm(r.employee);
+    for (const r of s.metrics.teamInsights) {
+      const key = norm(r.name);
       if (!key) continue;
-      let row = byEmployee.get(key);
+      let row = byPerson.get(key);
       if (!row) {
         row = {
-          employee: r.employee,
-          department: r.department,
+          name: r.name,
+          role: r.role,
           totalAllocationPct: 0,
-          totalAvailableHours: 0,
           totalPlannedHours: 0,
           totalActualHours: 0,
           projects: [],
           overAllocated: false,
         };
-        byEmployee.set(key, row);
+        byPerson.set(key, row);
       }
       row.totalAllocationPct += r.allocationPct ?? 0;
-      row.totalAvailableHours += r.availableHours ?? 0;
       row.totalPlannedHours += r.plannedHours ?? 0;
       row.totalActualHours += r.actualHours ?? 0;
       row.projects.push({
@@ -170,12 +134,7 @@ export function computeCapacity(snapshots: ProjectSnapshot[]): CapacityRow[] {
       });
     }
   }
-  const rows = [...byEmployee.values()];
-  for (const row of rows) {
-    row.overAllocated =
-      row.totalAllocationPct > 100 ||
-      (row.totalAvailableHours > 0 &&
-        row.totalPlannedHours > row.totalAvailableHours);
-  }
+  const rows = [...byPerson.values()];
+  for (const row of rows) row.overAllocated = row.totalAllocationPct > 100;
   return rows.sort((a, b) => b.totalAllocationPct - a.totalAllocationPct);
 }

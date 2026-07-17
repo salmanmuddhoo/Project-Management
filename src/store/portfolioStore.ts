@@ -78,19 +78,19 @@ export const usePortfolioStore = create<PortfolioState>((set) => ({
 // Derived data hooks
 // ---------------------------------------------------------------------------
 
-/** Applies session Kanban drags to a project's backlog before analysis. */
+/** Applies session Kanban drags to a project's task list before analysis. */
 function withOverrides(
   project: Project,
   overrides: Record<string, KanbanColumn>,
 ): Project {
-  const touched = project.backlog.some(
-    (t) => overrides[`${project.id}:${t.taskId}`] != null,
+  const touched = project.tasks.some(
+    (t) => overrides[`${project.id}:${t.id}`] != null,
   );
   if (!touched) return project;
   return {
     ...project,
-    backlog: project.backlog.map((t) => {
-      const override = overrides[`${project.id}:${t.taskId}`];
+    tasks: project.tasks.map((t) => {
+      const override = overrides[`${project.id}:${t.id}`];
       return override ? { ...t, status: override } : t;
     }),
   };

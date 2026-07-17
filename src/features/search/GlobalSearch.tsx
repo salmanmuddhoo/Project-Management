@@ -39,34 +39,34 @@ function collectHits(snapshots: ProjectSnapshot[], query: string): SearchHit[] {
     if (match(c.projectName, c.projectCode, c.projectManager, c.sponsor, c.description, c.businessUnit)) {
       hits.push({ ...base, kind: "Project", tab: "overview", title: c.projectName, snippet: `${c.projectCode} · ${c.projectManager}` });
     }
-    for (const o of project.outputs) {
-      if (match(o.outputId, o.deliverable, o.description, o.owner)) {
-        hits.push({ ...base, kind: "Output", tab: "outputs", title: o.deliverable, snippet: `${o.outputId} · ${o.status}` });
+    for (const o of project.deliverables) {
+      if (match(o.deliverable, o.owner, o.status)) {
+        hits.push({ ...base, kind: "Deliverable", tab: "delivery", title: o.deliverable, snippet: o.status });
       }
     }
     for (const m of project.milestones) {
-      if (match(m.milestone, m.description, m.owner)) {
-        hits.push({ ...base, kind: "Milestone", tab: "milestones", title: m.milestone, snippet: m.status });
+      if (match(m.milestone, m.owner)) {
+        hits.push({ ...base, kind: "Milestone", tab: "delivery", title: m.milestone, snippet: m.status });
       }
     }
-    for (const r of project.resources) {
-      if (match(r.employee, r.role, r.department)) {
-        hits.push({ ...base, kind: "Resource", tab: "resources", title: r.employee, snippet: r.role });
+    for (const r of project.team) {
+      if (match(r.name, r.role)) {
+        hits.push({ ...base, kind: "Team", tab: "team", title: r.name, snippet: r.role });
       }
     }
     for (const r of project.risks) {
-      if (match(r.riskId, r.description, r.owner, r.mitigation)) {
-        hits.push({ ...base, kind: "Risk", tab: "risks", title: r.description, snippet: `${r.riskId} · ${r.status}` });
+      if (match(r.risk, r.owner, r.mitigation)) {
+        hits.push({ ...base, kind: "Risk", tab: "risks", title: r.risk, snippet: r.status });
       }
     }
     for (const i of project.issues) {
-      if (match(i.issueId, i.description, i.owner)) {
-        hits.push({ ...base, kind: "Issue", tab: "issues", title: i.description, snippet: `${i.issueId} · ${i.severity}` });
+      if (match(i.issue, i.owner)) {
+        hits.push({ ...base, kind: "Issue", tab: "risks", title: i.issue, snippet: i.severity });
       }
     }
-    for (const t of project.backlog) {
-      if (match(t.taskId, t.taskTitle, t.description, t.epic, t.assignee, t.tags)) {
-        hits.push({ ...base, kind: "Task", tab: "backlog", title: t.taskTitle, snippet: `${t.taskId} · ${t.status} · ${t.assignee}` });
+    for (const t of project.tasks) {
+      if (match(t.title, t.owner)) {
+        hits.push({ ...base, kind: "Task", tab: "tasks", title: t.title, snippet: `${t.status} · ${t.owner}` });
       }
     }
   }

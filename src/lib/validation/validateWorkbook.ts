@@ -2,76 +2,92 @@
  * Validation engine — runs on the RawWorkbook BEFORE anything enters the
  * portfolio. Errors block import; warnings are shown but importable.
  *
- * Rule groups (see docs/EXCEL_TEMPLATE.md):
- *   1. Structure   — required sheets & columns exist
+ *   1. Structure   — the Project Brief sheet & its tables exist
  *   2. Charter     — mandatory fields, date sanity, non-negative budget
- *   3. Row-level   — mandatory cells, duplicate IDs, bad values
- *   4. Cross-sheet — budget consistency, time-log & sprint references
+ *   3. Row-level   — mandatory cells, duplicate names, bad values
+ *   4. Cross-sheet — budget consistency, over-allocation
  */
 
 import type { RawWorkbook } from "@/lib/excel/parseWorkbook";
 import {
-  REQUIRED_SHEETS,
   SHEETS,
-  TABULAR_SHEETS,
+  TABLE_SPECS,
   type SheetKey,
+  type TableSpec,
 } from "@/lib/excel/schema";
-import type {
-  ValidationIssue,
-  ValidationReport,
-} from "@/types/validation";
+import type { ValidationIssue, ValidationReport } from "@/types/validation";
 
 export function validateWorkbook(raw: RawWorkbook): ValidationReport {
   const issues: ValidationIssue[] = [...raw.coercionIssues];
   const present = new Set(raw.presentSheets);
 
   // -- 1. Structure ---------------------------------------------------------
-  for (const key of REQUIRED_SHEETS) {
-    if (!present.has(key)) {
-      issues.push({
-        severity: "error",
-        sheet: "Workbook",
-        message: `Required worksheet "${SHEETS[key]}" is missing.`,
-      });
-    }
+  if (!present.has("brief")) {
+    issues.push({
+      severity: "error",
+      sheet: "Workbook",
+      message: `Required worksheet "${SHEETS.brief}" is missing.`,
+    });
   }
-  for (const [key, table] of Object.entries(raw.tables)) {
+  for (const spec of TABLE_SPECS) {
+    const table = raw.tables[spec.key];
+    if (!table.found) continue; // whole-table absence handled below where needed
     for (const header of table.missingColumns) {
       issues.push({
         severity: "error",
-        sheet: SHEETS[key as SheetKey],
-        message: `Required column "${header}" is missing.`,
+        sheet: SHEETS[spec.sheet],
+        message: `The ${spec.key} table is missing its "${header}" column.`,
       });
     }
   }
+  // Brief tables the framework expects to see at all.
+  requireTable(raw, "milestones", "warning", issues);
+  requireTable(raw, "deliverables", "error", issues);
 
-  if (present.has("charter")) validateCharter(raw, issues);
+  if (present.has("brief")) validateCharter(raw, issues);
   validateRows(raw, issues);
   validateCrossSheet(raw, issues);
 
   const errorCount = issues.filter((i) => i.severity === "error").length;
-  const warningCount = issues.length - errorCount;
   return {
     fileName: raw.fileName,
     issues: sortIssues(issues),
     errorCount,
-    warningCount,
+    warningCount: issues.length - errorCount,
     valid: errorCount === 0,
   };
 }
 
 // ---------------------------------------------------------------------------
 
+function requireTable(
+  raw: RawWorkbook,
+  key: TableSpec["key"],
+  severity: "error" | "warning",
+  issues: ValidationIssue[],
+) {
+  const spec = TABLE_SPECS.find((t) => t.key === key)!;
+  if (raw.tables[key].rows.length === 0) {
+    issues.push({
+      severity,
+      sheet: SHEETS[spec.sheet],
+      message:
+        severity === "error"
+          ? `No ${key} recorded — add at least one row to the ${spec.columns[0].header} table.`
+          : `No ${key} recorded yet.`,
+    });
+  }
+}
+
 function validateCharter(raw: RawWorkbook, issues: ValidationIssue[]) {
-  const sheet = SHEETS.charter;
+  const sheet = SHEETS.brief;
   const c = raw.charter;
 
-  const mandatoryText: Array<[string, string]> = [
+  for (const [key, label] of [
     ["projectName", "Project Name"],
     ["projectCode", "Project Code"],
     ["projectManager", "Project Manager"],
-  ];
-  for (const [key, label] of mandatoryText) {
+  ] as const) {
     if (!String(c[key] ?? "").trim()) {
       issues.push({
         severity: "error",
@@ -82,8 +98,6 @@ function validateCharter(raw: RawWorkbook, issues: ValidationIssue[]) {
     }
   }
 
-  // Missing sponsor is flagged but does not block import — governance checks
-  // and executive recommendations surface sponsor-less projects to the board.
   if (!String(c.sponsor ?? "").trim()) {
     issues.push({
       severity: "warning",
@@ -96,58 +110,30 @@ function validateCharter(raw: RawWorkbook, issues: ValidationIssue[]) {
 
   const budget = c.budget as number | null;
   if (budget == null) {
-    issues.push({
-      severity: "error",
-      sheet,
-      column: "Budget",
-      message: "Mandatory field \"Budget\" is empty.",
-    });
+    issues.push({ severity: "error", sheet, column: "Budget", message: 'Mandatory field "Budget" is empty.' });
   } else if (budget < 0) {
-    issues.push({
-      severity: "error",
-      sheet,
-      column: "Budget",
-      message: `Budget cannot be negative (${budget}).`,
-    });
+    issues.push({ severity: "error", sheet, column: "Budget", message: `Budget cannot be negative (${budget}).` });
   }
 
   const start = c.plannedStartDate as Date | null;
   const end = c.plannedEndDate as Date | null;
   if (!start) {
-    issues.push({
-      severity: "error",
-      sheet,
-      column: "Planned Start Date",
-      message: "Planned Start Date is missing.",
-    });
+    issues.push({ severity: "error", sheet, column: "Start Date", message: "Start Date is missing." });
   }
   if (!end) {
-    issues.push({
-      severity: "error",
-      sheet,
-      column: "Planned End Date",
-      message: "Planned End Date is missing.",
-    });
+    issues.push({ severity: "error", sheet, column: "Target End Date", message: "Target End Date is missing." });
   }
   if (start && end && start.getTime() > end.getTime()) {
-    issues.push({
-      severity: "error",
-      sheet,
-      message: "Planned Start Date is after Planned End Date.",
-    });
+    issues.push({ severity: "error", sheet, message: "Start Date is after the Target End Date." });
   }
 
-  const recommended: Array<[string, string]> = [
+  for (const [key, label] of [
     ["businessUnit", "Business Unit"],
     ["priority", "Priority"],
     ["status", "Status"],
     ["currentPhase", "Current Phase"],
-    ["fundingType", "Funding Type"],
-    ["currentProgressPct", "Current Progress %"],
-  ];
-  for (const [key, label] of recommended) {
-    const v = c[key];
-    if (v == null || String(v).trim() === "") {
+  ] as const) {
+    if (!String(c[key] ?? "").trim()) {
       issues.push({
         severity: "warning",
         sheet,
@@ -160,29 +146,20 @@ function validateCharter(raw: RawWorkbook, issues: ValidationIssue[]) {
 
 // ---------------------------------------------------------------------------
 
-interface DuplicateSpec {
-  sheet: SheetKey;
-  idKey: string;
-  idLabel: string;
-}
-
-const DUPLICATE_SPECS: DuplicateSpec[] = [
-  { sheet: "outputs", idKey: "outputId", idLabel: "Output ID" },
-  { sheet: "milestones", idKey: "milestone", idLabel: "Milestone" },
-  { sheet: "risks", idKey: "riskId", idLabel: "Risk ID" },
-  { sheet: "issues", idKey: "issueId", idLabel: "Issue ID" },
-  { sheet: "backlog", idKey: "taskId", idLabel: "Task ID" },
+const DUPLICATE_SPECS: Array<{ key: TableSpec["key"]; idKey: string; label: string }> = [
+  { key: "milestones", idKey: "milestone", label: "Milestone" },
+  { key: "deliverables", idKey: "deliverable", label: "Deliverable" },
+  { key: "tasks", idKey: "title", label: "Task" },
 ];
 
 function validateRows(raw: RawWorkbook, issues: ValidationIssue[]) {
-  // Mandatory cells on every tabular sheet.
-  for (const [key, columns] of Object.entries(TABULAR_SHEETS)) {
-    const table = raw.tables[key as SheetKey];
-    if (!table) continue;
-    const sheet = SHEETS[key as SheetKey];
-    const mandatory = columns.filter((c) => c.mandatory);
-    for (const row of table.rows) {
-      for (const def of mandatory) {
+  for (const spec of TABLE_SPECS) {
+    const table = raw.tables[spec.key];
+    if (!table.found) continue;
+    const sheet = SHEETS[spec.sheet];
+    for (const def of spec.columns) {
+      if (!def.mandatory) continue;
+      for (const row of table.rows) {
         const v = row.values[def.key];
         if (v == null || String(v).trim() === "") {
           issues.push({
@@ -197,13 +174,11 @@ function validateRows(raw: RawWorkbook, issues: ValidationIssue[]) {
     }
   }
 
-  // Duplicate IDs.
-  for (const spec of DUPLICATE_SPECS) {
-    const table = raw.tables[spec.sheet];
-    if (!table) continue;
+  for (const dup of DUPLICATE_SPECS) {
+    const spec = TABLE_SPECS.find((t) => t.key === dup.key)!;
     const seen = new Map<string, number>();
-    for (const row of table.rows) {
-      const id = String(row.values[spec.idKey] ?? "").trim().toLowerCase();
+    for (const row of raw.tables[dup.key].rows) {
+      const id = String(row.values[dup.idKey] ?? "").trim().toLowerCase();
       if (!id) continue;
       const first = seen.get(id);
       if (first != null) {
@@ -211,8 +186,8 @@ function validateRows(raw: RawWorkbook, issues: ValidationIssue[]) {
           severity: "error",
           sheet: SHEETS[spec.sheet],
           row: row.rowNumber,
-          column: spec.idLabel,
-          message: `Duplicate ${spec.idLabel} "${row.values[spec.idKey]}" (first used on row ${first}).`,
+          column: dup.label,
+          message: `Duplicate ${dup.label} "${row.values[dup.idKey]}" (first used on row ${first}).`,
         });
       } else {
         seen.set(id, row.rowNumber);
@@ -220,73 +195,40 @@ function validateRows(raw: RawWorkbook, issues: ValidationIssue[]) {
     }
   }
 
-  // Resource sanity.
-  const resources = raw.tables.resources;
-  if (resources) {
-    for (const row of resources.rows) {
-      const alloc = row.values.allocationPct as number | null;
-      if (alloc != null && alloc > 100) {
-        issues.push({
-          severity: "warning",
-          sheet: SHEETS.resources,
-          row: row.rowNumber,
-          column: "Allocation %",
-          message: `${String(row.values.employee)} is allocated at ${Math.round(alloc)}% (above 100%).`,
-        });
-      }
-      const available = row.values.availableHours as number | null;
-      const planned = row.values.plannedHours as number | null;
-      if (available != null && planned != null && planned > available) {
-        issues.push({
-          severity: "warning",
-          sheet: SHEETS.resources,
-          row: row.rowNumber,
-          message: `${String(row.values.employee)}: planned hours (${planned}) exceed available hours (${available}).`,
-        });
-      }
+  // Team over-allocation.
+  for (const row of raw.tables.team.rows) {
+    const alloc = row.values.allocationPct as number | null;
+    if (alloc != null && alloc > 100) {
+      issues.push({
+        severity: "warning",
+        sheet: SHEETS.teamBudget,
+        row: row.rowNumber,
+        column: "Allocation %",
+        message: `${String(row.values.name)} is allocated at ${Math.round(alloc)}% (above 100%).`,
+      });
     }
   }
 
   // Negative budget lines.
-  const budget = raw.tables.budget;
-  if (budget) {
-    for (const row of budget.rows) {
-      const planned = row.values.planned as number | null;
-      if (planned != null && planned < 0) {
-        issues.push({
-          severity: "error",
-          sheet: SHEETS.budget,
-          row: row.rowNumber,
-          column: "Planned",
-          message: `Planned amount cannot be negative (${planned}).`,
-        });
-      }
+  for (const row of raw.tables.budget.rows) {
+    const planned = row.values.planned as number | null;
+    if (planned != null && planned < 0) {
+      issues.push({
+        severity: "error",
+        sheet: SHEETS.teamBudget,
+        row: row.rowNumber,
+        column: "Planned",
+        message: `Planned amount cannot be negative (${planned}).`,
+      });
     }
-  }
-
-  // Deliverables must exist somewhere: outputs sheet or scope deliverables.
-  const outputRows = raw.tables.outputs?.rows ?? [];
-  const scopeDeliverables = raw.scope.deliverables ?? [];
-  if (
-    raw.presentSheets.includes("outputs") &&
-    outputRows.length === 0 &&
-    scopeDeliverables.length === 0
-  ) {
-    issues.push({
-      severity: "error",
-      sheet: SHEETS.outputs,
-      message:
-        "No deliverables defined — add at least one Expected Output (or Scope deliverable).",
-    });
   }
 }
 
 // ---------------------------------------------------------------------------
 
 function validateCrossSheet(raw: RawWorkbook, issues: ValidationIssue[]) {
-  // Budget sheet total vs charter budget (>10% gap → warning).
   const charterBudget = raw.charter.budget as number | null;
-  const budgetRows = raw.tables.budget?.rows ?? [];
+  const budgetRows = raw.tables.budget.rows;
   if (charterBudget != null && charterBudget > 0 && budgetRows.length > 0) {
     const sheetTotal = budgetRows.reduce(
       (sum, r) => sum + ((r.values.planned as number | null) ?? 0),
@@ -296,52 +238,9 @@ function validateCrossSheet(raw: RawWorkbook, issues: ValidationIssue[]) {
     if (gap > 0.1) {
       issues.push({
         severity: "warning",
-        sheet: SHEETS.budget,
-        message: `Budget sheet total (${Math.round(sheetTotal).toLocaleString()}) differs from the charter budget (${Math.round(charterBudget).toLocaleString()}) by ${Math.round(gap * 100)}%.`,
+        sheet: SHEETS.teamBudget,
+        message: `Budget breakdown total (${Math.round(sheetTotal).toLocaleString()}) differs from the charter budget (${Math.round(charterBudget).toLocaleString()}) by ${Math.round(gap * 100)}%.`,
       });
-    }
-  }
-
-  // Time-log task IDs unknown to the backlog.
-  const backlogIds = new Set(
-    (raw.tables.backlog?.rows ?? []).map((r) =>
-      String(r.values.taskId ?? "").trim().toLowerCase(),
-    ),
-  );
-  for (const row of raw.tables.timeTracking?.rows ?? []) {
-    const taskId = String(row.values.taskId ?? "").trim();
-    if (taskId && !backlogIds.has(taskId.toLowerCase())) {
-      issues.push({
-        severity: "warning",
-        sheet: SHEETS.timeTracking,
-        row: row.rowNumber,
-        column: "Task ID",
-        message: `Task ID "${taskId}" does not exist in the Product Backlog.`,
-      });
-    }
-  }
-
-  // Backlog sprint references unknown to the Sprints sheet (when present).
-  const sprintRows = raw.tables.sprints?.rows ?? [];
-  if (sprintRows.length > 0) {
-    const sprintIds = new Set(
-      sprintRows.map((r) =>
-        String(r.values.sprintNumber ?? "").trim().toLowerCase(),
-      ),
-    );
-    const flagged = new Set<string>();
-    for (const row of raw.tables.backlog?.rows ?? []) {
-      const sprint = String(row.values.sprint ?? "").trim();
-      if (sprint && !sprintIds.has(sprint.toLowerCase()) && !flagged.has(sprint)) {
-        flagged.add(sprint);
-        issues.push({
-          severity: "warning",
-          sheet: SHEETS.backlog,
-          row: row.rowNumber,
-          column: "Sprint",
-          message: `Sprint "${sprint}" is not defined on the Sprints sheet.`,
-        });
-      }
     }
   }
 }
@@ -355,3 +254,5 @@ function sortIssues(issues: ValidationIssue[]): ValidationIssue[] {
     return (a.row ?? 0) - (b.row ?? 0);
   });
 }
+
+export type { SheetKey };

@@ -62,9 +62,7 @@ export function MilestoneTimeline({ snapshots }: { snapshots: ProjectSnapshot[] 
       project: s.project.charter.projectName,
       projectId: s.project.id,
       ...m,
-      done:
-        ["completed", "done"].includes(String(m.status).trim().toLowerCase()) ||
-        (m.progressPct ?? 0) >= 100,
+      done: ["completed", "done"].includes(String(m.status).trim().toLowerCase()),
     })),
   );
   const overdue = all
@@ -78,7 +76,7 @@ export function MilestoneTimeline({ snapshots }: { snapshots: ProjectSnapshot[] 
   const Row = ({ m, late }: { m: (typeof all)[number]; late: boolean }) => (
     <li>
       <Link
-        to={`/projects/${m.projectId}?tab=milestones`}
+        to={`/projects/${m.projectId}?tab=delivery`}
         className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-muted/60"
       >
         <Flag className={cn("h-3.5 w-3.5 shrink-0", late ? "text-red-600" : "text-muted-foreground")} />
@@ -138,7 +136,7 @@ export function TopRisksList({ snapshots }: { snapshots: ProjectSnapshot[] }) {
         .map((r) => ({
           project: s.project.charter.projectName,
           projectId: s.project.id,
-          exposure: score(r.probability) * score(r.impact),
+          exposure: score(r.likelihood) * score(r.impact),
           ...r,
         })),
     )
@@ -158,9 +156,9 @@ export function TopRisksList({ snapshots }: { snapshots: ProjectSnapshot[] }) {
           >
             <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm">{r.description}</span>
+              <span className="block truncate text-sm">{r.risk}</span>
               <span className="block text-xs text-muted-foreground">
-                {r.project} · P:{r.probability || "?"} × I:{r.impact || "?"}
+                {r.project} · L:{r.likelihood || "?"} × I:{r.impact || "?"}
               </span>
             </span>
           </Link>
@@ -192,7 +190,7 @@ export function TopIssuesList({ snapshots }: { snapshots: ProjectSnapshot[] }) {
       {open.map((issue, i) => (
         <li key={i}>
           <Link
-            to={`/projects/${issue.projectId}?tab=issues`}
+            to={`/projects/${issue.projectId}?tab=risks`}
             className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60"
           >
             <AlertTriangle
@@ -202,7 +200,7 @@ export function TopIssuesList({ snapshots }: { snapshots: ProjectSnapshot[] }) {
               )}
             />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm">{issue.description}</span>
+              <span className="block truncate text-sm">{issue.issue}</span>
               <span className="block text-xs text-muted-foreground">
                 {issue.project} · {issue.severity || "Unrated"} · due {formatDate(issue.targetDate)}
               </span>
@@ -229,16 +227,16 @@ export function CapacityHeatMap({ capacity }: { capacity: CapacityRow[] }) {
     return SEQUENTIAL_BLUE[Math.max(0, idx)];
   };
   if (capacity.length === 0) {
-    return <p className="text-xs text-muted-foreground">No resource plans loaded.</p>;
+    return <p className="text-xs text-muted-foreground">No team plans loaded.</p>;
   }
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead>Employee</TableHead>
-          <TableHead>Department</TableHead>
+          <TableHead>Name</TableHead>
+          <TableHead>Role</TableHead>
           <TableHead className="text-right">Allocation</TableHead>
-          <TableHead className="text-right">Planned / Available hrs</TableHead>
+          <TableHead className="text-right">Planned / Actual hrs</TableHead>
           <TableHead>Projects</TableHead>
         </TableRow>
       </TableHeader>
@@ -247,10 +245,10 @@ export function CapacityHeatMap({ capacity }: { capacity: CapacityRow[] }) {
           const pct = Math.round(row.totalAllocationPct);
           const heat = colorFor(pct);
           return (
-            <TableRow key={row.employee}>
+            <TableRow key={row.name}>
               <TableCell className="font-medium">
                 <span className="flex items-center gap-2">
-                  {row.employee}
+                  {row.name}
                   {row.overAllocated && (
                     <Badge variant="outline" className="border-red-600/30 bg-red-600/10 text-red-700 dark:text-red-400">
                       <AlertTriangle className="h-3 w-3" /> Over
@@ -258,7 +256,7 @@ export function CapacityHeatMap({ capacity }: { capacity: CapacityRow[] }) {
                   )}
                 </span>
               </TableCell>
-              <TableCell className="text-muted-foreground">{row.department || "—"}</TableCell>
+              <TableCell className="text-muted-foreground">{row.role || "—"}</TableCell>
               <TableCell className="text-right">
                 <span
                   className="tnum inline-block min-w-14 rounded px-2 py-0.5 text-xs font-semibold"
@@ -271,7 +269,7 @@ export function CapacityHeatMap({ capacity }: { capacity: CapacityRow[] }) {
                 </span>
               </TableCell>
               <TableCell className="tnum text-right text-muted-foreground">
-                {Math.round(row.totalPlannedHours)} / {Math.round(row.totalAvailableHours)}
+                {Math.round(row.totalPlannedHours)} / {Math.round(row.totalActualHours)}
               </TableCell>
               <TableCell className="max-w-56 truncate text-xs text-muted-foreground">
                 {row.projects.map((p) => p.projectName).join(", ")}
