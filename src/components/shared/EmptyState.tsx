@@ -11,7 +11,7 @@ interface EmptyStateProps {
 /** Shown by every page when no workbooks have been imported this session. */
 export function EmptyState({
   title = "No projects in this session",
-  description = "Import one or more standardized project workbooks to build the portfolio. Everything is processed in your browser — nothing is uploaded or stored.",
+  description = "Import your Microsoft Planner board export(s) and Timorc time file to build the portfolio. Everything is processed in your browser — nothing is uploaded or stored.",
 }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-lg border border-dashed px-6 py-20 text-center">

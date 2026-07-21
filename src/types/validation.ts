@@ -1,22 +1,19 @@
-/** Validation engine result types. */
+/** Import validation result types. */
 
 export type ValidationSeverity = "error" | "warning";
 
 export interface ValidationIssue {
   severity: ValidationSeverity;
-  /** Sheet the issue belongs to ("Workbook" for structural issues). */
-  sheet: string;
-  /** 1-based Excel row, when the issue points at a specific row. */
-  row?: number;
-  column?: string;
+  /** Where the issue is ("Board", "Time file", a sheet name…). */
+  scope: string;
   message: string;
 }
 
 export interface ValidationReport {
   fileName: string;
+  kind: "board" | "time" | "unknown";
   issues: ValidationIssue[];
   errorCount: number;
   warningCount: number;
-  /** Import is allowed only when no errors exist. */
   valid: boolean;
 }

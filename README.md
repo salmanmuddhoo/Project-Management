@@ -1,41 +1,40 @@
 # Portfolio PPM
 
 A lightweight **Project Portfolio Management & Governance** web application.
-Project Managers complete a standardized Excel workbook per project; the app
-imports one or more workbooks, validates them, consolidates everything **in
-browser memory** and produces executive dashboards, health scores,
-recommendations and downloadable reports.
+It imports the exports you already produce — **Microsoft Planner** board plans
+and **Timorc** time-tracking files — matches time to each project, and produces
+executive dashboards, progress, hours-consumed-vs-budget and risk, all **in
+browser memory**.
 
-> **No database. No backend. No storage.** Workbooks are parsed with SheetJS
-> entirely in the browser; refreshing or closing the tab clears the session.
-> Only the light/dark theme preference is kept in `localStorage`.
+> **No database. No backend. No storage.** Files are parsed entirely in the
+> browser; refreshing or closing the tab clears the session. Only the
+> light/dark theme preference is kept in `localStorage`.
 
 This is a governance and reporting layer — it complements, and does not
-replace, delivery tools like Jira, Azure DevOps or Microsoft Project.
+replace, delivery tools like Microsoft Planner or Jira.
 
 ## Features
 
-- **Minimal, document-style workbook** (downloadable in-app, plus a 3-project
-  sample portfolio) — just three sheets with a colored, banner-titled layout
-  and a clear split between **blue "you fill in"** cells and **grey
-  "calculated automatically"** cells:
-  - **Project Brief** — charter, narrative, scope, milestones, deliverables,
-    risks and issues on one page.
-  - **Team & Budget** — team (costs & utilization auto-calculated) and budget
-    (variance auto-calculated).
-  - **Tasks** — a light task list whose Status drives the Kanban board.
-- **Validation engine** — structural, field-level and cross-sheet checks with
-  a full error/warning report before anything is imported.
-- **Executive dashboard** — KPIs, project health (weighted RAG model),
-  budget/variance/utilization charts, capacity heat map, milestone timeline,
-  top risks & issues, and auto-generated executive recommendations.
-- **Project workspace** — Overview (health breakdown, charter, scope),
-  Delivery, Risks & Issues, Team & Budget, Tasks and phase-gate Governance.
-- **Kanban board** — Jira-style status board generated from the Tasks sheet,
-  with session-only drag & drop.
-- **Filters & global search** (Ctrl/Cmd-K) across every uploaded workbook.
-- **Reports** — ten standard reports exportable to Excel (ExcelJS) and PDF
-  (jsPDF), generated fully client-side.
+- **Imports real exports** (no bespoke template) — see
+  [`docs/IMPORT_FORMATS.md`](docs/IMPORT_FORMATS.md):
+  - **Microsoft Planner board (`.xlsx`)** — one plan = one project. Buckets are
+    the swimlanes; the *Project Details* bucket's **Project Charter**,
+    **Taches Timorc** and **Resources** cards define the project (dates, hours
+    budget, Timorc code, team); every other bucket holds work tasks.
+  - **Timorc time export (`.csv`/`.xlsx`)** — daily man-days per person, matched
+    to a project by its Timorc code and converted at **7 h/day**.
+- **Progress & risk** — hours consumed vs the charter's hours budget, task
+  completion, and computed risk reasons (over budget, budget burning ahead of
+  delivery, behind schedule, overdue/blocked tasks) → a RAG health score.
+- **Executive dashboard** — KPIs, project health, hours budget-vs-consumed and
+  remaining, progress, tasks-by-bucket, hours-by-person, and recommendations.
+- **Project workspace** — Overview (charter, resources, Timorc link, health &
+  risk, governance), Tasks (by bucket), and Time (consumed vs budget, by person,
+  by task code, recent entries).
+- **Kanban board** — generated from a plan's buckets, session-only drag & drop.
+- **Filters & global search** (Ctrl/Cmd-K) across everything in memory.
+- **Reports** — Executive, Status, Time & Budget, Task, Risk and Governance,
+  exportable to Excel (ExcelJS) and PDF (jsPDF), fully client-side.
 - Light/dark mode, responsive enterprise UI (TailwindCSS + shadcn-style
   components, Recharts).
 
@@ -51,8 +50,8 @@ npm run typecheck  # strict TypeScript check
 Deploy `dist/` to any static host — no server-side code is required.
 
 **Evaluating without real data:** open **Import** and click *Load sample
-portfolio* to parse three generated demo workbooks through the same
-validation and import pipeline as real files.
+portfolio* to generate three Planner boards and one Timorc CSV (in the real
+export formats) and run them through the same pipeline as real files.
 
 ## Documentation
 
