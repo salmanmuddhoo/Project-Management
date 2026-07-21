@@ -28,11 +28,14 @@ replace, delivery tools like Microsoft Planner or Jira.
   delivery, behind schedule, overdue/blocked tasks) → a RAG health score.
 - **Executive dashboard** — KPIs, project health, hours budget-vs-consumed and
   remaining, progress, tasks-by-bucket, hours-by-person, and recommendations.
-- **Project workspace** — Overview (charter, resources, Timorc link, health &
-  risk, governance), Tasks (by bucket), and Time (consumed vs budget, by person,
-  by task code, recent entries).
-- **Kanban board** — generated from a plan's buckets, session-only drag & drop.
-- **Filters & global search** (Ctrl/Cmd-K) across everything in memory.
+- **Single project**, with a dedicated menu each: **Overview** (KPIs, hours
+  vs budget, health & risk), **Project Details** (charter facts + the three
+  sections *Ce que nous faisons* / *Pourquoi nous le faisons* / *Comment savoir
+  si c'est une réussite*), **Resources** (team + hours logged), **Kanban**,
+  **Time** (consumed vs budget, by person, by task code) and **Reports**.
+  Importing a board replaces the current project.
+- **Kanban board** — generated from the plan's buckets, session-only drag & drop.
+- **Global search** (Ctrl/Cmd-K) across the project, tasks, people and codes.
 - **Reports** — Executive, Status, Time & Budget, Task, Risk and Governance,
   exportable to Excel (ExcelJS) and PDF (jsPDF), fully client-side.
 - Light/dark mode, responsive enterprise UI (TailwindCSS + shadcn-style

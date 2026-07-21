@@ -1,5 +1,5 @@
 /**
- * Kanban board generated from a Planner board's buckets (swimlanes).
+ * Kanban board generated from the project's Planner buckets (swimlanes).
  * Cards are draggable between buckets via @dnd-kit; moves live only in the
  * session store (no persistence).
  */
@@ -21,9 +21,8 @@ import { CalendarDays, GripVertical } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "@/components/shared/badges";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, formatDate } from "@/lib/utils";
-import { useFilteredSnapshots, usePortfolioStore } from "@/store/portfolioStore";
+import { useActiveSnapshot, usePortfolioStore } from "@/store/portfolioStore";
 import type { Task } from "@/types/project";
 
 interface BoardTask extends Task {
@@ -77,28 +76,24 @@ function Column({ bucket, tasks }: { bucket: string; tasks: BoardTask[] }) {
 }
 
 export function KanbanPage() {
-  const snapshots = useFilteredSnapshots();
-  const hasProjects = usePortfolioStore((s) => s.projects.length > 0);
+  const snapshot = useActiveSnapshot();
   const moveTask = usePortfolioStore((s) => s.moveTask);
-  const [projectId, setProjectId] = useState<string>(snapshots[0]?.project.id ?? "all");
   const [activeTask, setActiveTask] = useState<BoardTask | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
-  const selected = snapshots.find((s) => s.project.id === projectId) ?? snapshots[0];
-
   const { buckets, tasks } = useMemo(() => {
-    if (!selected) return { buckets: [] as string[], tasks: [] as BoardTask[] };
-    const tasks = selected.project.tasks.map((t) => ({ ...t, projectId: selected.project.id, dndId: `${selected.project.id}:${t.id}` }));
-    return { buckets: selected.project.buckets, tasks };
-  }, [selected]);
+    if (!snapshot) return { buckets: [] as string[], tasks: [] as BoardTask[] };
+    const tasks = snapshot.project.tasks.map((t) => ({ ...t, projectId: snapshot.project.id, dndId: `${snapshot.project.id}:${t.id}` }));
+    return { buckets: snapshot.project.buckets, tasks };
+  }, [snapshot]);
 
-  if (!hasProjects) return <EmptyState />;
+  if (!snapshot) return <EmptyState />;
 
   const onDragStart = (e: DragStartEvent) => setActiveTask(tasks.find((t) => t.dndId === e.active.id) ?? null);
   const onDragEnd = (e: DragEndEvent) => {
     setActiveTask(null);
     const { active, over } = e;
-    if (!over || !selected) return;
+    if (!over) return;
     const task = tasks.find((t) => t.dndId === active.id);
     const bucket = String(over.id);
     if (task && buckets.includes(bucket) && task.bucket !== bucket) moveTask(task.projectId, task.id, bucket);
@@ -106,17 +101,9 @@ export function KanbanPage() {
 
   return (
     <div className="flex h-full flex-col space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">Kanban board</h1>
-          <p className="text-sm text-muted-foreground">Buckets from the Planner board. Drags last for this session only.</p>
-        </div>
-        <Select value={selected?.project.id ?? ""} onValueChange={setProjectId}>
-          <SelectTrigger className="w-64"><SelectValue placeholder="Select project" /></SelectTrigger>
-          <SelectContent>
-            {snapshots.map((s) => <SelectItem key={s.project.id} value={s.project.id}>{s.project.charter.projectName}</SelectItem>)}
-          </SelectContent>
-        </Select>
+      <div>
+        <h1 className="text-xl font-semibold">Kanban board</h1>
+        <p className="text-sm text-muted-foreground">Buckets from the Planner board. Drags last for this session only.</p>
       </div>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>

@@ -2,16 +2,17 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { KanbanPage } from "@/features/kanban/KanbanPage";
-import { ProjectDetailPage } from "@/features/projects/ProjectDetailPage";
-import { ProjectsListPage } from "@/features/projects/ProjectsListPage";
+import { OverviewPage } from "@/features/project/OverviewPage";
+import { ProjectDetailsPage } from "@/features/project/ProjectDetailsPage";
+import { ResourcesPage } from "@/features/project/ResourcesPage";
+import { TimePage } from "@/features/project/TimeView";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { UploadPage } from "@/features/upload/UploadPage";
 
 /**
- * HashRouter keeps the SPA deployable as plain static files (no server
- * rewrites needed) — consistent with the zero-backend architecture.
+ * Single-project app. HashRouter keeps it deployable as plain static files
+ * (no server rewrites needed) — consistent with the zero-backend architecture.
  */
 export default function App() {
   return (
@@ -19,13 +20,14 @@ export default function App() {
       <HashRouter>
         <Routes>
           <Route element={<AppShell />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="projects" element={<ProjectsListPage />} />
-            <Route path="projects/:projectId" element={<ProjectDetailPage />} />
+            <Route index element={<OverviewPage />} />
+            <Route path="details" element={<ProjectDetailsPage />} />
+            <Route path="resources" element={<ResourcesPage />} />
             <Route path="kanban" element={<KanbanPage />} />
+            <Route path="time" element={<TimePage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="import" element={<UploadPage />} />
-            <Route path="*" element={<DashboardPage />} />
+            <Route path="*" element={<OverviewPage />} />
           </Route>
         </Routes>
       </HashRouter>

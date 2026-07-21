@@ -1,13 +1,15 @@
 import { useState } from "react";
 import {
+  ClipboardList,
+  Clock,
   FileUp,
-  FolderKanban,
   LayoutDashboard,
   ListTodo,
   Menu,
   Search,
   ShieldCheck,
   FileBarChart2,
+  Users,
   X,
 } from "lucide-react";
 import { Link, NavLink, Outlet } from "react-router-dom";
@@ -21,9 +23,11 @@ import { usePortfolioStore } from "@/store/portfolioStore";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/projects", label: "Projects", icon: FolderKanban },
+  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/details", label: "Project Details", icon: ClipboardList },
+  { to: "/resources", label: "Resources", icon: Users },
   { to: "/kanban", label: "Kanban", icon: ListTodo },
+  { to: "/time", label: "Time", icon: Clock },
   { to: "/reports", label: "Reports", icon: FileBarChart2 },
   { to: "/import", label: "Import", icon: FileUp },
 ];
@@ -121,7 +125,7 @@ export function AppShell() {
             onClick={() => setSearchOpen(true)}
           >
             <Search className="h-3.5 w-3.5" />
-            Search portfolio…
+            Search project…
             <kbd className="ml-auto hidden rounded border bg-muted px-1.5 font-mono text-[10px] sm:inline">
               Ctrl K
             </kbd>
@@ -135,7 +139,7 @@ export function AppShell() {
                   projectCount > 0 ? "bg-green-600" : "bg-muted-foreground",
                 )}
               />
-              {projectCount} project{projectCount === 1 ? "" : "s"} in memory
+              {projectCount > 0 ? "Project loaded" : "No project"} · in memory
             </Badge>
             <ThemeToggle />
           </div>

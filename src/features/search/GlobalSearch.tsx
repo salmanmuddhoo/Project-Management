@@ -12,13 +12,12 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
-import { useSnapshots } from "@/store/portfolioStore";
+import { useActiveSnapshot } from "@/store/portfolioStore";
 
 interface SearchHit {
-  projectId: string;
-  projectName: string;
   kind: string;
-  tab: string;
+  /** Route to navigate to. */
+  route: string;
   title: string;
   snippet: string;
 }
@@ -32,19 +31,18 @@ function collectHits(snapshots: ProjectSnapshot[], query: string): SearchHit[] {
   for (const s of snapshots) {
     const { project } = s;
     const c = project.charter;
-    const base = { projectId: project.id, projectName: c.projectName };
     if (match(c.projectName, c.projectCode, c.manager, c.notes)) {
-      hits.push({ ...base, kind: "Project", tab: "overview", title: c.projectName, snippet: `${c.projectCode} · ${c.manager}` });
+      hits.push({ kind: "Project", route: "/details", title: c.projectName, snippet: `${c.projectCode} · ${c.manager}` });
     }
     for (const code of project.timorcCodes) {
-      if (match(code.code)) hits.push({ ...base, kind: "Timorc", tab: "time", title: code.code, snippet: "Timorc code" });
+      if (match(code.code)) hits.push({ kind: "Timorc", route: "/time", title: code.code, snippet: "Timorc code" });
     }
     for (const r of project.resources) {
-      if (match(r.name, r.role)) hits.push({ ...base, kind: "Resource", tab: "overview", title: r.name, snippet: r.role });
+      if (match(r.name, r.role)) hits.push({ kind: "Resource", route: "/resources", title: r.name, snippet: r.role });
     }
     for (const t of project.tasks) {
       if (match(t.title, t.assignee, t.notes, t.bucket)) {
-        hits.push({ ...base, kind: "Task", tab: "tasks", title: t.title, snippet: `${t.bucket} · ${t.assignee}` });
+        hits.push({ kind: "Task", route: "/kanban", title: t.title, snippet: `${t.bucket} · ${t.assignee}` });
       }
     }
   }
@@ -52,7 +50,8 @@ function collectHits(snapshots: ProjectSnapshot[], query: string): SearchHit[] {
 }
 
 export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const snapshots = useSnapshots();
+  const active = useActiveSnapshot();
+  const snapshots = useMemo(() => (active ? [active] : []), [active]);
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
 
@@ -77,7 +76,7 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
             onChange={(e) => setQuery(e.target.value)} className="border-0 shadow-none focus-visible:ring-0" />
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {snapshots.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">Import boards first — search runs across everything in memory.</p>}
+          {snapshots.length === 0 && <p className="px-2 py-6 text-center text-sm text-muted-foreground">Import a board first — search runs across everything in memory.</p>}
           {query.trim().length >= 2 && hits.length === 0 && snapshots.length > 0 && (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">No matches.</p>
           )}
@@ -85,11 +84,11 @@ export function GlobalSearch({ open, onOpenChange }: { open: boolean; onOpenChan
             {hits.map((hit, i) => (
               <li key={i}>
                 <button className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-accent"
-                  onClick={() => { onOpenChange(false); navigate(`/projects/${hit.projectId}?tab=${hit.tab}`); }}>
+                  onClick={() => { onOpenChange(false); navigate(hit.route); }}>
                   <Badge variant="muted" className="w-20 shrink-0 justify-center">{hit.kind}</Badge>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{hit.title}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{hit.projectName} · {hit.snippet}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{hit.snippet}</span>
                   </span>
                 </button>
               </li>

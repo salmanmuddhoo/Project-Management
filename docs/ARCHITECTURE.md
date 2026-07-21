@@ -1,9 +1,11 @@
 # Portfolio PPM — Application Architecture
 
 A lightweight, in-browser **Project Portfolio Management & Governance** tool.
-It imports the exports teams already produce — **Microsoft Planner** board
-plans and **Timorc** time-tracking files — consolidates them in memory, and
-produces executive dashboards, progress, hours-consumed-vs-budget and risk.
+It is a **single-project** tool that imports the exports teams already produce
+— a **Microsoft Planner** board plan and a **Timorc** time-tracking file —
+holds them in memory, and shows the project's details, resources, progress,
+hours-consumed-vs-budget and risk. Importing a board replaces the current
+project.
 
 **It is not a Planner/Jira replacement** — it is the governance & reporting
 layer above them.
@@ -63,9 +65,11 @@ src/
 │   ├── metrics/      projectMetrics · healthScore · governance ·
 │   │                 portfolioMetrics · recommendations
 │   └── export/       reportDefinitions · excelReports · pdfReports
-├── store/            portfolioStore.ts (projects, time pool, filters, snapshots)
+├── lib/charterSections.ts   split charter notes into the 3 sections
+├── store/            portfolioStore.ts (project, time pool, snapshots)
 ├── components/       ui/ · layout/ · charts/ · shared/
-└── features/         upload · dashboard · projects · kanban · reports · search
+└── features/         upload · project (Overview/Details/Resources/Time) ·
+                      kanban · reports · search
 ```
 
 ## 5. Domain model
