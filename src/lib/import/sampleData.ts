@@ -97,7 +97,7 @@ const boards: BoardDef[] = [
     buckets: BUCKETS,
     cards: [
       { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-30), due: iso(30), labels: "80 hrs",
-        notes: "What we do\nDeliver a fully digital customer onboarding journey.\nWhy\nCut onboarding from 9 days to under 24h and reduce abandonment.\nSuccess\nOnboarding < 24h and abandonment < 10% within the quarter." },
+        notes: "Ce que nous faisons\nDeliver a fully digital customer onboarding journey.\nPourquoi nous le faisons\nCut onboarding from 9 days to under 24h and reduce abandonment.\nComment savoir si c'est une réussite\nOnboarding < 24h and abandonment < 10% within the quarter." },
       { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO1 - 100.001" },
       { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nSarah Naidoo\nDeveloper\nJohn Okafor\nTester\nMarie Lin" },
       { id: "t1", title: "Registration flow", bucket: "Completed", assignee: "John Okafor", priority: "Élevé", start: iso(-28), end: iso(-10), statut: "Terminées" },
@@ -115,7 +115,7 @@ const boards: BoardDef[] = [
     buckets: BUCKETS,
     cards: [
       { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-60), due: iso(-5), labels: "120 hrs",
-        notes: "What we do\nMigrate the on-premise warehouse to a cloud lakehouse.\nWhy\nCurrent platform is end-of-life within 12 months.\nSuccess\n100% of critical pipelines migrated with zero data loss." },
+        notes: "Ce que nous faisons\nMigrate the on-premise warehouse to a cloud lakehouse.\nPourquoi nous le faisons\nCurrent platform is end-of-life within 12 months.\nComment savoir si c'est une réussite\n100% of critical pipelines migrated with zero data loss." },
       { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO2 - 200.010" },
       { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nMiguel Santos\nData Engineer\nElena Petrova\nBI Lead\nTom Becker" },
       { id: "t1", title: "Lakehouse foundation", bucket: "Completed", assignee: "Elena Petrova", start: iso(-58), end: iso(-40), statut: "Terminées" },
@@ -132,7 +132,7 @@ const boards: BoardDef[] = [
     buckets: BUCKETS,
     cards: [
       { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-10), due: iso(120), labels: "60 hrs",
-        notes: "What we do\nModernize collaboration tooling and meeting rooms across HQ.\nWhy\nHybrid work exposes outdated meeting technology.\nSuccess\n90% weekly active usage after three months." },
+        notes: "Ce que nous faisons\nModernize collaboration tooling and meeting rooms across HQ.\nPourquoi nous le faisons\nHybrid work exposes outdated meeting technology.\nComment savoir si c'est une réussite\n90% weekly active usage after three months." },
       { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO3 - 300.005" },
       { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nFatima Rashid\nEngineer\nDaniel Kim\nChange Manager\nGrace Mwangi" },
       { id: "t1", title: "Pilot floor AV install", bucket: "In progress", assignee: "Daniel Kim", priority: "Élevé", start: iso(-6), due: iso(15), statut: "En cours" },

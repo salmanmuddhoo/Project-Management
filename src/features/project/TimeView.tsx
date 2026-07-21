@@ -6,11 +6,27 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { HOURS_PER_DAY } from "@/lib/config";
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { cn, formatDate, formatNumber, formatPct } from "@/lib/utils";
+import { useActiveSnapshot } from "@/store/portfolioStore";
 
-export function TimeTab({ snapshot }: { snapshot: ProjectSnapshot }) {
+export function TimePage() {
+  const snapshot = useActiveSnapshot();
+  if (!snapshot) return <EmptyState />;
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-xl font-semibold">Time tracking</h1>
+        <p className="text-sm text-muted-foreground">Hours logged against this project's Timorc code, from the time export.</p>
+      </div>
+      <TimeBody snapshot={snapshot} />
+    </div>
+  );
+}
+
+function TimeBody({ snapshot }: { snapshot: ProjectSnapshot }) {
   const { metrics, project, entries } = snapshot;
 
   if (project.timorcCodes.length === 0) {

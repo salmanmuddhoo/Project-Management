@@ -49,7 +49,8 @@ export function UploadPage() {
   const process = useCallback(async (files: File[]) => {
     setBusy(true);
     const result = await importFiles(files);
-    setBoards((prev) => dedupe([...prev, ...result.boards], (b) => b.project.id + b.report.fileName));
+    // Single-project app: keep only the most recently dropped board.
+    setBoards((prev) => (result.boards.length > 0 ? result.boards.slice(-1) : prev));
     setTimes((prev) => dedupe([...prev, ...result.times], (t) => t.report.fileName));
     setUnknown((prev) => [...prev, ...result.unknown]);
     setBusy(false);
@@ -79,10 +80,10 @@ export function UploadPage() {
       <div>
         <h1 className="text-xl font-semibold">Import project data</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Drop your <strong>Microsoft Planner</strong> board export(s) and your{" "}
-          <strong>Timorc</strong> time export. Time is matched to each project by its Timorc code
-          (converted at {HOURS_PER_DAY}h per day). Everything is processed in your browser — nothing
-          is uploaded or stored.
+          Drop your <strong>Microsoft Planner</strong> board export and your{" "}
+          <strong>Timorc</strong> time export. Time is matched to the project by its Timorc code
+          (converted at {HOURS_PER_DAY}h per day). This is a single-project app — importing a board
+          replaces the current one. Everything is processed in your browser — nothing is stored.
         </p>
       </div>
 
@@ -132,8 +133,7 @@ export function UploadPage() {
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Ready to import</h2>
             <Button onClick={commit} disabled={validBoardCount === 0 && validTimeCount === 0}>
-              Import {validBoardCount} project{validBoardCount === 1 ? "" : "s"}
-              {validTimeCount > 0 && ` + ${validTimeCount} time file${validTimeCount === 1 ? "" : "s"}`}
+              Import project{validTimeCount > 0 && ` + ${validTimeCount} time file${validTimeCount === 1 ? "" : "s"}`}
             </Button>
           </div>
 
