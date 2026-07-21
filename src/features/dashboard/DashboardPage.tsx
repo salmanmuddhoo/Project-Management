@@ -1,6 +1,7 @@
 /**
  * Executive portfolio dashboard — KPIs, charts and recommendations across
- * every workbook imported this session, driven by the shared filter state.
+ * every imported Planner board + matched Timorc time, driven by the shared
+ * filter state.
  */
 
 import {
@@ -11,6 +12,7 @@ import {
   FolderKanban,
   HeartPulse,
   Hourglass,
+  ListChecks,
   TrendingDown,
 } from "lucide-react";
 
@@ -18,48 +20,29 @@ import { ChartCard } from "@/components/charts/ChartCard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { KpiTile } from "@/components/shared/KpiTile";
 import { RagBadge } from "@/components/shared/badges";
-import { formatMoneyCompact, formatNumber } from "@/lib/utils";
+import { formatNumber } from "@/lib/utils";
 import { usePortfolioAnalytics, usePortfolioStore } from "@/store/portfolioStore";
 
 import { FilterBar } from "./FilterBar";
 import {
-  BudgetByProjectChart,
   BudgetVarianceChart,
-  CountByDimensionChart,
-  DeliverableCompletionChart,
-  TaskStatusChart,
-  UtilizationChart,
+  HoursByPersonChart,
+  HoursByProjectChart,
+  ProgressChart,
+  TaskBucketChart,
 } from "./widgets/PortfolioCharts";
-import {
-  CapacityHeatMap,
-  MilestoneTimeline,
-  ProjectHealthList,
-  RecommendationsPanel,
-  TopIssuesList,
-  TopRisksList,
-} from "./widgets/PortfolioLists";
+import { ProjectHealthList, RecommendationsPanel } from "./widgets/PortfolioLists";
 
-function countBy(
-  items: string[],
-): Array<{ name: string; value: number }> {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    const key = item.trim() || "Not set";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return [...counts.entries()]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
-}
+const hrs = (n: number) => `${formatNumber(n)}h`;
 
 export function DashboardPage() {
   const hasProjects = usePortfolioStore((s) => s.projects.length > 0);
-  const { snapshots, portfolio, capacity, recommendations } =
-    usePortfolioAnalytics();
+  const { snapshots, portfolio, capacity, recommendations } = usePortfolioAnalytics();
 
   if (!hasProjects) return <EmptyState />;
 
-  const charters = snapshots.map((s) => s.project.charter);
+  const overdueTasks = snapshots.reduce((n, s) => n + s.metrics.tasksOverdue, 0);
+  const byPerson = capacity.map((c) => ({ name: c.name, hours: c.totalHours }));
 
   return (
     <div className="space-y-5">
@@ -67,8 +50,7 @@ export function DashboardPage() {
         <div>
           <h1 className="text-xl font-semibold">Portfolio dashboard</h1>
           <p className="text-sm text-muted-foreground">
-            {portfolio.totalProjects} project(s) in scope · consolidated in
-            memory, nothing stored
+            {portfolio.totalProjects} project(s) · consolidated in memory, nothing stored
           </p>
         </div>
         <RagBadge rag={portfolio.portfolioRag} score={portfolio.portfolioHealthScore} />
@@ -82,89 +64,43 @@ export function DashboardPage() {
         </p>
       ) : (
         <>
-          {/* KPI tiles */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label="Total Projects" value={portfolio.totalProjects} icon={FolderKanban} />
+            <KpiTile label="Projects" value={portfolio.totalProjects} icon={FolderKanban} />
             <KpiTile label="On Track" value={portfolio.onTrack} icon={CheckCircle2} tone="good" />
-            <KpiTile label="Delayed" value={portfolio.delayed} icon={Clock} tone={portfolio.delayed > 0 ? "warning" : "default"} />
             <KpiTile label="At Risk" value={portfolio.atRisk} icon={AlertTriangle} tone={portfolio.atRisk > 0 ? "critical" : "default"} />
+            <KpiTile label="Over Budget" value={portfolio.overBudget} icon={TrendingDown} tone={portfolio.overBudget > 0 ? "critical" : "default"} />
             <KpiTile label="Completed" value={portfolio.completed} icon={CheckCircle2} />
-            <KpiTile
-              label="Portfolio Health"
-              value={portfolio.portfolioHealthScore}
-              icon={HeartPulse}
-              hint={portfolio.portfolioRag}
-              tone={portfolio.portfolioRag === "Green" ? "good" : portfolio.portfolioRag === "Amber" ? "warning" : "critical"}
-            />
-            <KpiTile label="Total Budget" value={formatMoneyCompact(portfolio.totalBudget)} icon={Banknote} />
-            <KpiTile
-              label="Budget Used"
-              value={formatMoneyCompact(portfolio.budgetUsed)}
-              icon={TrendingDown}
-              hint={`${formatMoneyCompact(portfolio.budgetRemaining)} remaining`}
-            />
-            <KpiTile label="Planned Hours" value={formatNumber(portfolio.totalPlannedHours)} icon={Hourglass} />
-            <KpiTile label="Actual Hours" value={formatNumber(portfolio.totalActualHours)} icon={Hourglass} />
-            <KpiTile label="Remaining Hours" value={formatNumber(portfolio.remainingHours)} icon={Hourglass} />
-            <KpiTile
-              label="Open Critical Issues"
-              value={snapshots.reduce((n, s) => n + s.metrics.openCriticalIssues, 0)}
-              icon={AlertTriangle}
-              tone={snapshots.some((s) => s.metrics.openCriticalIssues > 0) ? "critical" : "default"}
-            />
+            <KpiTile label="Portfolio Health" value={portfolio.portfolioHealthScore} icon={HeartPulse} hint={portfolio.portfolioRag}
+              tone={portfolio.portfolioRag === "Green" ? "good" : portfolio.portfolioRag === "Amber" ? "warning" : "critical"} />
+            <KpiTile label="Hours Budget" value={hrs(portfolio.totalBudgetHours)} icon={Banknote} />
+            <KpiTile label="Hours Consumed" value={hrs(portfolio.consumedHours)} icon={Hourglass}
+              hint={`${hrs(Math.max(0, portfolio.remainingHours))} remaining`} tone={portfolio.remainingHours < 0 ? "critical" : "default"} />
+            <KpiTile label="Tasks Done" value={`${portfolio.tasksCompleted}/${portfolio.tasksTotal}`} icon={ListChecks} />
+            <KpiTile label="Overdue Tasks" value={overdueTasks} icon={Clock} tone={overdueTasks > 0 ? "warning" : "default"} />
           </div>
 
-          {/* Charts */}
           <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-            <ChartCard title="Project health" description="Weighted health score per project (worst first)">
+            <ChartCard title="Project health" description="Weighted health score (worst first)">
               <ProjectHealthList snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Projects by status">
-              <CountByDimensionChart data={countBy(charters.map((c) => c.status))} />
+            <ChartCard title="Hours: budget vs consumed" description="From the Timorc time export">
+              <HoursByProjectChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Projects by manager">
-              <CountByDimensionChart data={countBy(charters.map((c) => c.projectManager))} />
-            </ChartCard>
-            <ChartCard title="Projects by business unit">
-              <CountByDimensionChart data={countBy(charters.map((c) => c.businessUnit))} />
-            </ChartCard>
-            <ChartCard title="Budget by project" description="Planned vs actual spend">
-              <BudgetByProjectChart snapshots={snapshots} />
-            </ChartCard>
-            <ChartCard title="Budget variance" description="Planned minus forecast — negative is an overrun">
+            <ChartCard title="Hours remaining" description="Negative = over the hours budget">
               <BudgetVarianceChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Resource utilization" description="Actual vs planned hours per project">
-              <UtilizationChart snapshots={snapshots} />
+            <ChartCard title="Progress" description="Task completion per project">
+              <ProgressChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Task status" description="Tasks across the portfolio">
-              <TaskStatusChart snapshots={snapshots} />
+            <ChartCard title="Tasks by bucket" description="Across the portfolio">
+              <TaskBucketChart snapshots={snapshots} />
             </ChartCard>
-            <ChartCard title="Deliverable completion" description="Average deliverable completion per project">
-              <DeliverableCompletionChart snapshots={snapshots} />
-            </ChartCard>
-            <ChartCard title="Milestone timeline" description="Delayed and upcoming milestones across projects">
-              <MilestoneTimeline snapshots={snapshots} />
-            </ChartCard>
-            <ChartCard title="Top risks" description="Ranked by probability × impact">
-              <TopRisksList snapshots={snapshots} />
-            </ChartCard>
-            <ChartCard title="Top issues" description="Open issues by severity">
-              <TopIssuesList snapshots={snapshots} />
+            <ChartCard title="Hours by person" description="Who is spending the time">
+              <HoursByPersonChart data={byPerson} />
             </ChartCard>
           </div>
 
-          <ChartCard
-            title="Capacity heat map"
-            description="Total allocation per person across every project in scope"
-          >
-            <CapacityHeatMap capacity={capacity} />
-          </ChartCard>
-
-          <ChartCard
-            title="Executive recommendations"
-            description="Automatically generated from the standard governance checks"
-          >
+          <ChartCard title="Executive recommendations" description="Automatically generated risk findings">
             <RecommendationsPanel recommendations={recommendations} />
           </ChartCard>
         </>

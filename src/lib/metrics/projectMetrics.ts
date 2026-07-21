@@ -1,264 +1,174 @@
 /**
- * Per-project calculation engine. Pure functions over the parsed Project —
- * nothing here is stored; dashboards, reports and exports all derive from
- * the same computations so figures can never disagree.
+ * Per-project calculation engine. Pure functions over a parsed Planner
+ * project and its matched Timorc time entries. Nothing is stored; every view
+ * derives from the same computations.
  */
 
-import type { Project, TeamMember } from "@/types/project";
+import type { Project, Task } from "@/types/project";
+import type { TimeEntry } from "@/types/time";
+import { HOURS_PER_DAY } from "@/lib/config";
 import { clamp, daysBetween, ratio } from "@/lib/utils";
 
-export interface TeamInsight extends TeamMember {
-  plannedCost: number | null;
-  actualCost: number | null;
-  /** Actual vs planned hours (percent). */
-  utilizationPct: number | null;
-  hoursRemaining: number | null;
-  /** Allocation over 100%. */
-  overAllocated: boolean;
-  costVariance: number | null;
+export interface ResourceTime {
+  name: string;
+  days: number;
+  hours: number;
+}
+export interface CodeTime {
+  code: string;
+  task: string;
+  days: number;
+  hours: number;
 }
 
 export interface ProjectMetrics {
   // Schedule
+  startDate: Date | null;
+  endDate: Date | null;
   durationDays: number | null;
   daysRemaining: number | null;
-  daysDelayed: number;
   timeElapsedPct: number | null;
-  forecastEndDate: Date | null;
+  overdue: boolean;
 
-  // Budget
-  budgetPlanned: number;
-  budgetActual: number;
-  budgetForecast: number;
+  // Budget (time)
+  budgetHours: number | null;
+  consumedDays: number;
+  consumedHours: number;
   budgetConsumedPct: number | null;
-  budgetVariance: number;
-  budgetVariancePct: number | null;
+  remainingHours: number | null;
+  overBudget: boolean;
 
-  // Team
-  totalPlannedHours: number;
-  totalActualHours: number;
-  totalRemainingHours: number;
-  resourceUtilizationPct: number | null;
-  resourceCostVariance: number;
-  teamInsights: TeamInsight[];
-  overallocated: TeamInsight[];
-
-  // Delivery
+  // Tasks
   tasksTotal: number;
-  tasksDone: number;
+  tasksCompleted: number;
+  tasksInProgress: number;
+  tasksBlocked: number;
+  tasksOverdue: number;
   taskCompletionPct: number | null;
-  milestonesTotal: number;
-  milestonesCompleted: number;
-  milestonesOverdue: number;
-  milestoneCompletionPct: number | null;
-  deliverablesTotal: number;
-  deliverablesCompleted: number;
-  deliverablesDelayed: number;
-  deliverablesRemaining: number;
-  deliverableCompletionPct: number | null;
+  byBucket: Array<{ bucket: string; count: number }>;
 
-  // Risk / issue exposure
-  openRisks: number;
-  openHighRisks: number;
-  openIssues: number;
-  openCriticalIssues: number;
+  // People / codes
+  byResource: ResourceTime[];
+  byCode: CodeTime[];
+  timeEntryCount: number;
 
-  /** Computed from delivery signals (0–100). */
+  /** Task-completion based progress (0–100). */
   overallProgressPct: number;
 }
 
-const DONE_STATUSES = new Set(["completed", "done", "accepted", "closed"]);
-const OPEN_STATUSES = new Set(["open", "in progress", "mitigating", ""]);
+const DONE_BUCKETS = ["completed", "done", "terminé", "terminée", "terminées", "termine", "closed", "clos"];
+const BLOCKED_BUCKETS = ["blocked", "bloqué", "bloque", "on hold"];
+const PROGRESS_BUCKETS = ["in progress", "en cours", "doing", "wip"];
 
-const isDone = (s: string | null | undefined) =>
-  DONE_STATUSES.has(String(s ?? "").trim().toLowerCase());
-const isOpen = (s: string | null | undefined) =>
-  OPEN_STATUSES.has(String(s ?? "").trim().toLowerCase());
+const norm = (s: string) => s.trim().toLowerCase();
+const isDoneBucket = (b: string) => DONE_BUCKETS.includes(norm(b));
+const isBlockedBucket = (b: string) => BLOCKED_BUCKETS.includes(norm(b));
+const isProgressBucket = (b: string) => PROGRESS_BUCKETS.includes(norm(b));
 
-function isHigh(level: string | null | undefined): boolean {
-  const norm = String(level ?? "").trim().toLowerCase();
-  if (norm === "high" || norm === "critical") return true;
-  const num = Number(norm);
-  return Number.isFinite(num) && num >= 4;
-}
-
-export function computeTeamInsights(team: TeamMember[]): TeamInsight[] {
-  return team.map((r) => {
-    const plannedCost =
-      r.hourlyRate != null && r.plannedHours != null
-        ? r.hourlyRate * r.plannedHours
-        : null;
-    const actualCost =
-      r.hourlyRate != null && r.actualHours != null
-        ? r.hourlyRate * r.actualHours
-        : null;
-    const hoursRemaining =
-      r.plannedHours != null && r.actualHours != null
-        ? Math.max(0, r.plannedHours - r.actualHours)
-        : null;
-    return {
-      ...r,
-      plannedCost,
-      actualCost,
-      hoursRemaining,
-      utilizationPct:
-        r.plannedHours != null && r.actualHours != null && r.plannedHours > 0
-          ? (r.actualHours / r.plannedHours) * 100
-          : null,
-      overAllocated: r.allocationPct != null && r.allocationPct > 100,
-      costVariance:
-        plannedCost != null && actualCost != null ? plannedCost - actualCost : null,
-    };
-  });
+function isTaskDone(t: Task): boolean {
+  return isDoneBucket(t.bucket) || t.endDate != null || norm(t.progressStatus).startsWith("termin");
 }
 
 export function computeProjectMetrics(
   project: Project,
+  entries: TimeEntry[],
   today: Date = new Date(),
+  hoursPerDay: number = HOURS_PER_DAY,
 ): ProjectMetrics {
   const { charter } = project;
 
-  const start = charter.actualStartDate ?? charter.plannedStartDate;
-  const plannedEnd = charter.plannedEndDate;
-  const durationDays =
-    charter.plannedStartDate && plannedEnd
-      ? daysBetween(charter.plannedStartDate, plannedEnd)
-      : null;
+  // -- Schedule -------------------------------------------------------------
+  const start = charter.startDate;
+  const end = charter.endDate;
+  const durationDays = start && end ? daysBetween(start, end) : null;
   const timeElapsedPct =
-    start && plannedEnd
-      ? clamp(
-          ratio(daysBetween(start, today), Math.max(1, daysBetween(start, plannedEnd))) * 100,
-          0,
-          100,
-        )
+    start && end
+      ? clamp(ratio(daysBetween(start, today), Math.max(1, daysBetween(start, end))) * 100, 0, 100)
       : null;
+  const daysRemaining = end ? daysBetween(today, end) : null;
 
-  // -- Delivery -------------------------------------------------------------
+  // -- Tasks ----------------------------------------------------------------
   const tasksTotal = project.tasks.length;
-  const tasksDone = project.tasks.filter((t) => t.status === "Done").length;
-  const taskCompletionPct =
-    tasksTotal > 0 ? (tasksDone / tasksTotal) * 100 : null;
-
-  const milestonesTotal = project.milestones.length;
-  const milestonesCompleted = project.milestones.filter((m) =>
-    isDone(m.status),
+  const tasksCompleted = project.tasks.filter(isTaskDone).length;
+  const tasksBlocked = project.tasks.filter((t) => isBlockedBucket(t.bucket)).length;
+  const tasksInProgress = project.tasks.filter((t) => isProgressBucket(t.bucket)).length;
+  const tasksOverdue = project.tasks.filter(
+    (t) => !isTaskDone(t) && (t.overdue || (t.dueDate != null && t.dueDate < today)),
   ).length;
-  const milestonesOverdue = project.milestones.filter(
-    (m) => !isDone(m.status) && m.plannedDate != null && m.plannedDate < today,
-  ).length;
-  const milestoneCompletionPct =
-    milestonesTotal > 0 ? (milestonesCompleted / milestonesTotal) * 100 : null;
+  const taskCompletionPct = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : null;
 
-  const deliverablesTotal = project.deliverables.length;
-  const deliverablesCompleted = project.deliverables.filter(
-    (o) => isDone(o.status) || (o.completionPct ?? 0) >= 100,
-  ).length;
-  const deliverablesDelayed = project.deliverables.filter((o) => {
-    if (isDone(o.status)) return false;
-    if (String(o.status ?? "").trim().toLowerCase() === "delayed") return true;
-    return o.dueDate != null && o.dueDate < today;
-  }).length;
-  const deliverableCompletionPct =
-    deliverablesTotal > 0
-      ? project.deliverables.reduce(
-          (s, o) => s + clamp(o.completionPct ?? (isDone(o.status) ? 100 : 0), 0, 100),
-          0,
-        ) / deliverablesTotal
-      : null;
+  const bucketCounts = new Map<string, number>();
+  for (const b of project.buckets) bucketCounts.set(b, 0);
+  for (const t of project.tasks) bucketCounts.set(t.bucket, (bucketCounts.get(t.bucket) ?? 0) + 1);
+  const byBucket = [...bucketCounts.entries()].map(([bucket, count]) => ({ bucket, count }));
 
-  // -- Overall progress (computed only) -------------------------------------
-  const signals = [
-    taskCompletionPct,
-    milestoneCompletionPct,
-    deliverableCompletionPct,
-  ].filter((v): v is number => v != null);
-  const overallProgressPct = clamp(
-    signals.length > 0 ? signals.reduce((a, b) => a + b, 0) / signals.length : 0,
-    0,
-    100,
-  );
-
-  // -- Forecast finish ------------------------------------------------------
-  let forecastEndDate: Date | null = plannedEnd;
-  if (start && plannedEnd) {
-    const elapsed = Math.max(1, daysBetween(start, today));
-    if (elapsed > 7 && overallProgressPct > 0 && overallProgressPct < 100) {
-      const totalNeeded = elapsed / (overallProgressPct / 100);
-      forecastEndDate = new Date(start.getTime() + Math.round(totalNeeded) * 86_400_000);
-    }
-  }
-  const effectiveEnd = forecastEndDate ?? plannedEnd;
-  const daysRemaining = effectiveEnd ? daysBetween(today, effectiveEnd) : null;
-  const daysDelayed =
-    plannedEnd && effectiveEnd ? Math.max(0, daysBetween(plannedEnd, effectiveEnd)) : 0;
-
-  // -- Budget ---------------------------------------------------------------
-  const sheetPlanned = project.budget.reduce((s, b) => s + (b.planned ?? 0), 0);
-  const budgetPlanned = charter.budget ?? sheetPlanned;
-  const budgetActual = project.budget.reduce((s, b) => s + (b.actual ?? 0), 0);
-  const sheetForecast = project.budget.reduce(
-    (s, b) => s + (b.forecast ?? b.actual ?? 0),
-    0,
-  );
-  const budgetForecast = sheetForecast > 0 ? sheetForecast : budgetActual;
+  // -- Time (budget) --------------------------------------------------------
+  const consumedDays = entries.reduce((s, e) => s + (e.days ?? 0), 0);
+  const consumedHours = consumedDays * hoursPerDay;
+  const budgetHours = charter.budgetHours;
   const budgetConsumedPct =
-    budgetPlanned > 0 ? (budgetActual / budgetPlanned) * 100 : null;
-  const budgetVariance = budgetPlanned - budgetForecast;
-  const budgetVariancePct =
-    budgetPlanned > 0 ? (budgetVariance / budgetPlanned) * 100 : null;
+    budgetHours && budgetHours > 0 ? (consumedHours / budgetHours) * 100 : null;
+  const remainingHours = budgetHours != null ? budgetHours - consumedHours : null;
+  const overBudget = budgetHours != null && consumedHours > budgetHours;
 
-  // -- Team -----------------------------------------------------------------
-  const teamInsights = computeTeamInsights(project.team);
-  const totalPlannedHours = teamInsights.reduce((s, r) => s + (r.plannedHours ?? 0), 0);
-  const totalActualHours = teamInsights.reduce((s, r) => s + (r.actualHours ?? 0), 0);
-  const totalRemainingHours = teamInsights.reduce((s, r) => s + (r.hoursRemaining ?? 0), 0);
-  const resourceCostVariance = teamInsights.reduce((s, r) => s + (r.costVariance ?? 0), 0);
-
-  // -- Risks & issues -------------------------------------------------------
-  const openRiskList = project.risks.filter((r) => isOpen(r.status));
-  const openIssueList = project.issues.filter((i) => isOpen(i.status));
+  // Per person / per code rollups
+  const byResource = rollup(entries, (e) => e.person, hoursPerDay).map(([name, days]) => ({
+    name,
+    days,
+    hours: days * hoursPerDay,
+  }));
+  const codeMap = new Map<string, { task: string; days: number }>();
+  for (const e of entries) {
+    const key = e.code || e.projet;
+    const cur = codeMap.get(key) ?? { task: e.task, days: 0 };
+    cur.days += e.days ?? 0;
+    if (!cur.task) cur.task = e.task;
+    codeMap.set(key, cur);
+  }
+  const byCode: CodeTime[] = [...codeMap.entries()]
+    .map(([code, v]) => ({ code, task: v.task, days: v.days, hours: v.days * hoursPerDay }))
+    .sort((a, b) => b.hours - a.hours);
 
   return {
+    startDate: start,
+    endDate: end,
     durationDays,
     daysRemaining,
-    daysDelayed,
     timeElapsedPct,
-    forecastEndDate,
+    overdue: end != null && end < today && (taskCompletionPct ?? 0) < 100,
 
-    budgetPlanned,
-    budgetActual,
-    budgetForecast,
+    budgetHours,
+    consumedDays,
+    consumedHours,
     budgetConsumedPct,
-    budgetVariance,
-    budgetVariancePct,
-
-    totalPlannedHours,
-    totalActualHours,
-    totalRemainingHours,
-    resourceUtilizationPct:
-      totalPlannedHours > 0 ? (totalActualHours / totalPlannedHours) * 100 : null,
-    resourceCostVariance,
-    teamInsights,
-    overallocated: teamInsights.filter((r) => r.overAllocated),
+    remainingHours,
+    overBudget,
 
     tasksTotal,
-    tasksDone,
+    tasksCompleted,
+    tasksInProgress,
+    tasksBlocked,
+    tasksOverdue,
     taskCompletionPct,
-    milestonesTotal,
-    milestonesCompleted,
-    milestonesOverdue,
-    milestoneCompletionPct,
-    deliverablesTotal,
-    deliverablesCompleted,
-    deliverablesDelayed,
-    deliverablesRemaining: deliverablesTotal - deliverablesCompleted,
-    deliverableCompletionPct,
+    byBucket,
 
-    openRisks: openRiskList.length,
-    openHighRisks: openRiskList.filter((r) => isHigh(r.impact) && isHigh(r.likelihood)).length,
-    openIssues: openIssueList.length,
-    openCriticalIssues: openIssueList.filter((i) => isHigh(i.severity)).length,
+    byResource: byResource.sort((a, b) => b.hours - a.hours),
+    byCode,
+    timeEntryCount: entries.length,
 
-    overallProgressPct,
+    overallProgressPct: clamp(taskCompletionPct ?? 0, 0, 100),
   };
+}
+
+function rollup(
+  entries: TimeEntry[],
+  keyOf: (e: TimeEntry) => string,
+  _hoursPerDay: number,
+): Array<[string, number]> {
+  const map = new Map<string, number>();
+  for (const e of entries) {
+    const key = keyOf(e) || "—";
+    map.set(key, (map.get(key) ?? 0) + (e.days ?? 0));
+  }
+  return [...map.entries()];
 }

@@ -3,15 +3,22 @@
 import ExcelJS from "exceljs";
 
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
-import { downloadWorkbook } from "@/lib/excel/template";
 import type { ReportDefinition } from "./reportDefinitions";
 
-const TITLE_FONT: Partial<ExcelJS.Font> = { bold: true, size: 14 };
-const HEADER_FILL: ExcelJS.Fill = {
-  type: "pattern",
-  pattern: "solid",
-  fgColor: { argb: "FF1F3A5F" },
-};
+const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1F3A5F" } };
+
+async function download(wb: ExcelJS.Workbook, fileName: string) {
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export async function exportReportToExcel(
   report: ReportDefinition,
@@ -22,32 +29,25 @@ export async function exportReportToExcel(
   wb.created = new Date();
 
   for (const table of report.build(snapshots)) {
-    // Worksheet names: ≤31 chars, no []:*?/\ characters.
     const name = table.title.replace(/[[\]:*?/\\]/g, " ").slice(0, 31);
     const ws = wb.addWorksheet(name);
-
     const titleRow = ws.addRow([table.title]);
-    titleRow.font = TITLE_FONT;
+    titleRow.font = { bold: true, size: 14 };
     ws.addRow([`Generated ${new Date().toLocaleString()} — Portfolio PPM`]);
     ws.addRow([]);
-
     const headerRow = ws.addRow(table.headers);
     headerRow.eachCell((cell) => {
       cell.fill = HEADER_FILL;
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
     });
     for (const row of table.rows) ws.addRow(row);
-
     ws.columns.forEach((col, i) => {
       const headerLen = table.headers[i]?.length ?? 10;
-      const maxData = table.rows.reduce(
-        (max, r) => Math.max(max, String(r[i] ?? "").length),
-        0,
-      );
+      const maxData = table.rows.reduce((m, r) => Math.max(m, String(r[i] ?? "").length), 0);
       col.width = Math.max(12, Math.min(60, Math.max(headerLen, maxData) + 2));
     });
     ws.views = [{ state: "frozen", ySplit: 4 }];
   }
 
-  await downloadWorkbook(wb, `${report.title.replace(/\s+/g, "-")}.xlsx`);
+  await download(wb, `${report.title.replace(/\s+/g, "-")}.xlsx`);
 }
