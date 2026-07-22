@@ -39,7 +39,12 @@ hours label like `50 hrs`, are still supported as a fallback.
 Every card in any **other** bucket is a work task. The **bucket** is its status
 / Kanban column; start, due and end dates, priority, assignee, notes and the
 overdue flag are read per card. A duration in the **label** (`3 days`, `2 hrs`)
-is the task's **effort estimate** — used for effort-weighted progress and EVM.
+is the task's **effort estimate**. A checklist item **`Avancement : 20%`** (or
+a bare `20%` in the label/notes) is the task's **progress** — blank means just
+starting (0%), a Completed bucket means 100%.
+
+Progress and estimate together drive **Earned Value**: EV = Σ(estimate ×
+progress) ÷ Σ(estimate), so partially-done tasks earn partial value.
 
 ## Earned Value Management (EVM)
 

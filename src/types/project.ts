@@ -76,6 +76,8 @@ export interface Task {
   notes: string;
   /** Effort estimate in hours, parsed from a label like "3 days" / "2 hrs". */
   estimateHours: number | null;
+  /** Manager-entered progress 0–100 ("Avancement : 10%"); null = not set. */
+  progressPct: number | null;
 }
 
 /** A fully parsed Planner board = one project. */

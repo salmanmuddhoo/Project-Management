@@ -131,12 +131,16 @@ function evmTable(s: ProjectSnapshot): ReportTable {
 }
 
 function tasksTable(s: ProjectSnapshot): ReportTable {
+  const done = (t: (typeof s.project.tasks)[number]) =>
+    ["completed", "done", "terminé", "terminée", "terminées"].includes(t.bucket.trim().toLowerCase()) ||
+    t.endDate != null || (t.progressPct ?? 0) >= 100;
   return {
     title: "Tasks",
-    headers: ["Task", "Bucket", "Assignee", "Priority", "Estimate", "Start", "Due", "End"],
+    headers: ["Task", "Bucket", "Assignee", "Priority", "Estimate", "Progress", "Start", "Due", "End"],
     rows: s.project.tasks.map((t) => [
       t.title, t.bucket, t.assignee || "—", t.priority,
       t.estimateHours == null ? "—" : `${Math.round(t.estimateHours)}h`,
+      `${done(t) ? 100 : Math.max(0, Math.min(100, t.progressPct ?? 0))}%`,
       formatDate(t.startDate), formatDate(t.dueDate), formatDate(t.endDate),
     ]),
   };
