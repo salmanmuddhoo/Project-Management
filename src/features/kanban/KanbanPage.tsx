@@ -21,6 +21,7 @@ import { CalendarDays, GripVertical } from "lucide-react";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { PriorityBadge } from "@/components/shared/badges";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { cn, formatDate } from "@/lib/utils";
 import { useActiveSnapshot, usePortfolioStore } from "@/store/portfolioStore";
 import type { Task } from "@/types/project";
@@ -30,15 +31,29 @@ interface BoardTask extends Task {
   dndId: string;
 }
 
+const DONE_BUCKETS = ["completed", "done", "terminé", "terminée", "terminées"];
+function cardProgress(task: BoardTask): number {
+  if (DONE_BUCKETS.includes(task.bucket.trim().toLowerCase()) || task.endDate != null) return 100;
+  return Math.max(0, Math.min(100, task.progressPct ?? 0));
+}
+
 function TaskCard({ task, overlay = false }: { task: BoardTask; overlay?: boolean }) {
   const overdue = !task.endDate && task.dueDate != null && task.dueDate < new Date();
+  const progress = cardProgress(task);
   return (
     <div className={cn("rounded-md border bg-card p-2.5 text-sm shadow-sm", overlay && "rotate-2 shadow-lg")}>
       <div className="flex items-start justify-between gap-1">
         <span className="line-clamp-2 font-medium leading-snug">{task.title}</span>
         <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5"><PriorityBadge priority={task.priority} /></div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <PriorityBadge priority={task.priority} />
+        {task.estimateHours != null && <Badge variant="muted" className="tnum">{Math.round(task.estimateHours)}h</Badge>}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Progress value={progress} className="h-1.5 flex-1" />
+        <span className="tnum text-[10px] text-muted-foreground">{Math.round(progress)}%</span>
+      </div>
       <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
         <span className="truncate">{task.assignee || "Unassigned"}</span>
         {task.dueDate && (

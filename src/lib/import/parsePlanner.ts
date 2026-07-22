@@ -44,6 +44,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   overdue: ["en retard", "late", "overdue"],
   labels: ["étiquettes", "etiquettes", "labels", "tags"],
   notes: ["commentaires", "notes", "description", "comments"],
+  checklist: ["éléments de la liste de contrôle", "elements de la liste de controle", "checklist items", "checklist"],
 };
 
 function resolveColumns(header: unknown[]): Record<string, number> {
@@ -112,6 +113,18 @@ function parseEstimateHours(labels: string): number | null {
   const n = Number(m[1].replace(",", "."));
   if (!Number.isFinite(n)) return null;
   return /^(d|day|days|j|jour|jours)$/i.test(m[2]) ? n * HOURS_PER_DAY : n;
+}
+
+/**
+ * Task progress % — the manager writes "Avancement : 20%" in a checklist item
+ * (or a bare "20%" in labels/notes). Blank ("Avancement :") ⇒ null (not set).
+ */
+function parseProgressPct(...sources: string[]): number | null {
+  const text = sources.join("\n");
+  const m = /avancement\s*[:=]?\s*(\d+(?:[.,]\d+)?)\s*%/i.exec(text) ?? /(?:^|[\s;,])(\d{1,3})\s*%/.exec(text);
+  if (!m) return null;
+  const n = Number(m[1].replace(",", "."));
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +269,7 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
       labels,
       notes,
       estimateHours: parseEstimateHours(labels),
+      progressPct: parseProgressPct(toText(cell(row, "checklist")), labels, notes),
     });
   }
 

@@ -42,15 +42,18 @@ interface CardDef {
   overdue?: boolean;
   /** Used as the task effort estimate ("3 days", "2 hrs"). */
   labels?: string;
+  /** Progress %, written as a checklist item ("Avancement : 20%"). */
+  progress?: number;
   notes?: string;
 }
 
 function consRow(c: CardDef): (string | null)[] {
+  const checklist = c.progress != null ? `Avancement : ${c.progress}%` : "";
   return [
     c.id, c.title, c.bucket, "", c.statut ?? "Non démarrées", c.priority ?? "Moyen",
     c.assignee ?? "", "", iso(-40), c.due ?? "", c.start ?? "",
     "false", c.overdue ? "true" : "false", c.end ?? "", "",
-    "", "", c.labels ?? "", c.notes ?? "",
+    "", checklist, c.labels ?? "", c.notes ?? "",
   ];
 }
 
@@ -114,8 +117,8 @@ const boards: BoardDef[] = [
           budget: ["Cost: Rs 900,000", "Hours: 80"],
         }) },
       { id: "t1", title: "Registration flow", bucket: "Completed", assignee: "John Okafor", priority: "Élevé", labels: "3 days", start: iso(-28), end: iso(-10), statut: "Terminées" },
-      { id: "t2", title: "Document upload UI", bucket: "In progress", assignee: "John Okafor", priority: "Élevé", labels: "2 days", start: iso(-8), due: iso(4), statut: "En cours" },
-      { id: "t3", title: "KYC integration", bucket: "In progress", assignee: "Sarah Naidoo", priority: "Urgent", labels: "4 days", start: iso(-6), due: iso(6), statut: "En cours" },
+      { id: "t2", title: "Document upload UI", bucket: "In progress", assignee: "John Okafor", priority: "Élevé", labels: "2 days", progress: 40, start: iso(-8), due: iso(4), statut: "En cours" },
+      { id: "t3", title: "KYC integration", bucket: "In progress", assignee: "Sarah Naidoo", priority: "Urgent", labels: "4 days", progress: 25, start: iso(-6), due: iso(6), statut: "En cours" },
       { id: "t4", title: "Manual review fallback", bucket: "Blocked", assignee: "Sarah Naidoo", priority: "Élevé", labels: "1 day", due: iso(-2), overdue: true },
       { id: "t5", title: "Accessibility audit", bucket: "Backlog", assignee: "Marie Lin", priority: "Moyen", labels: "2 days", due: iso(18) },
       { id: "t6", title: "E2E test suite", bucket: "Backlog", assignee: "Marie Lin", priority: "Élevé", labels: "3 days", due: iso(12) },
@@ -138,8 +141,8 @@ const boards: BoardDef[] = [
           budget: ["Hours: 120"], // hours-only budget
         }) },
       { id: "t1", title: "Lakehouse foundation", bucket: "Completed", assignee: "Elena Petrova", labels: "5 days", start: iso(-58), end: iso(-40), statut: "Terminées" },
-      { id: "t2", title: "Migrate finance pipelines", bucket: "In progress", assignee: "Elena Petrova", priority: "Urgent", labels: "8 days", due: iso(-3), overdue: true, statut: "En cours" },
-      { id: "t3", title: "Rebuild exec dashboards", bucket: "In progress", assignee: "Tom Becker", priority: "Urgent", labels: "4 days", due: iso(-1), overdue: true, statut: "En cours" },
+      { id: "t2", title: "Migrate finance pipelines", bucket: "In progress", assignee: "Elena Petrova", priority: "Urgent", labels: "8 days", progress: 60, due: iso(-3), overdue: true, statut: "En cours" },
+      { id: "t3", title: "Rebuild exec dashboards", bucket: "In progress", assignee: "Tom Becker", priority: "Urgent", labels: "4 days", progress: 50, due: iso(-1), overdue: true, statut: "En cours" },
       { id: "t4", title: "Reconcile sales data", bucket: "Blocked", assignee: "Tom Becker", priority: "Élevé", labels: "3 days", due: iso(4) },
       { id: "t5", title: "Legacy decommission plan", bucket: "Backlog", assignee: "Miguel Santos", priority: "Moyen", labels: "2 days", due: iso(20) },
     ],
@@ -160,7 +163,7 @@ const boards: BoardDef[] = [
           resources: ["Project Manager: Fatima Rashid", "Engineer: Daniel Kim", "Change Manager: Grace Mwangi"],
           budget: ["Cost: Rs 600,000"], // cost-only budget
         }) },
-      { id: "t1", title: "Pilot floor AV install", bucket: "In progress", assignee: "Daniel Kim", priority: "Élevé", labels: "4 days", start: iso(-6), due: iso(15), statut: "En cours" },
+      { id: "t1", title: "Pilot floor AV install", bucket: "In progress", assignee: "Daniel Kim", priority: "Élevé", labels: "4 days", progress: 30, start: iso(-6), due: iso(15), statut: "En cours" },
       { id: "t2", title: "Wave 1 hardware order", bucket: "Completed", assignee: "Daniel Kim", labels: "1 day", start: iso(-8), end: iso(-2), statut: "Terminées" },
       { id: "t3", title: "Pilot user survey", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Moyen", labels: "2 days", due: iso(22) },
       { id: "t4", title: "Champions network setup", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Faible", labels: "3 days", due: iso(40) },

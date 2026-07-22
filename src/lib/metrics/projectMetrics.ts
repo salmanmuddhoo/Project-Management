@@ -72,7 +72,18 @@ const isBlockedBucket = (b: string) => BLOCKED_BUCKETS.includes(norm(b));
 const isProgressBucket = (b: string) => PROGRESS_BUCKETS.includes(norm(b));
 
 function isTaskDone(t: Task): boolean {
-  return isDoneBucket(t.bucket) || t.endDate != null || norm(t.progressStatus).startsWith("termin");
+  return (
+    isDoneBucket(t.bucket) ||
+    t.endDate != null ||
+    norm(t.progressStatus).startsWith("termin") ||
+    (t.progressPct ?? 0) >= 100
+  );
+}
+
+/** A task's completion 0–100: done ⇒ 100, else its entered progress (or 0). */
+function taskProgress(t: Task): number {
+  if (isTaskDone(t)) return 100;
+  return Math.max(0, Math.min(100, t.progressPct ?? 0));
 }
 
 export function computeProjectMetrics(
@@ -101,13 +112,18 @@ export function computeProjectMetrics(
   const tasksOverdue = project.tasks.filter(
     (t) => !isTaskDone(t) && (t.overdue || (t.dueDate != null && t.dueDate < today)),
   ).length;
-  const taskCompletionPct = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : null;
+  // Progress-aware completion: average of each task's % (done ⇒ 100).
+  const taskCompletionPct =
+    tasksTotal > 0
+      ? project.tasks.reduce((s, t) => s + taskProgress(t), 0) / tasksTotal
+      : null;
 
-  // Effort-weighted completion, when tasks carry estimates.
+  // Earned value of estimated work: Σ(estimate × progress) ÷ Σ(estimate).
   const estimateHoursTotal = project.tasks.reduce((s, t) => s + (t.estimateHours ?? 0), 0);
-  const estimateHoursDone = project.tasks
-    .filter(isTaskDone)
-    .reduce((s, t) => s + (t.estimateHours ?? 0), 0);
+  const estimateHoursDone = project.tasks.reduce(
+    (s, t) => s + (t.estimateHours ?? 0) * (taskProgress(t) / 100),
+    0,
+  );
   const effortCompletionPct =
     estimateHoursTotal > 0 ? (estimateHoursDone / estimateHoursTotal) * 100 : null;
 
