@@ -1,29 +1,26 @@
 /**
- * Project Details — the charter facts plus its three standard sections:
- * "Ce que nous faisons", "Pourquoi nous le faisons",
- * "Comment savoir si c'est une réussite".
+ * Project Details — the charter facts plus its narrative sections, parsed
+ * from the single "Project Charter" card (Objectif, Pourquoi nous le faisons,
+ * Critère de succès, Livrable clé…).
  */
 
-import { HelpCircle, Lightbulb, Target } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { splitCharterSections, type CharterSection } from "@/lib/charterSections";
-import { formatDate } from "@/lib/utils";
+import { formatCost, formatDate } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
-
-const SECTION_ICON: Record<CharterSection["key"], typeof Lightbulb> = {
-  what: Lightbulb,
-  why: HelpCircle,
-  success: Target,
-};
 
 export function ProjectDetailsPage() {
   const snapshot = useActiveSnapshot();
   if (!snapshot) return <EmptyState />;
   const { project } = snapshot;
   const c = project.charter;
-  const sections = splitCharterSections(c.notes);
+
+  const budget = [
+    c.budgetHours != null ? `${Math.round(c.budgetHours)}h` : null,
+    c.budgetCost != null ? formatCost(c.budgetCost, c.currency) : null,
+  ].filter(Boolean).join(" · ") || "—";
 
   const facts: Array<[string, string]> = [
     ["Project", c.projectName],
@@ -32,7 +29,7 @@ export function ProjectDetailsPage() {
     ["Timorc code(s)", project.timorcCodes.map((t) => t.code).join(", ") || "—"],
     ["Start date", formatDate(c.startDate)],
     ["End date", formatDate(c.endDate)],
-    ["Hours budget", c.budgetHours != null ? `${Math.round(c.budgetHours)}h` : "—"],
+    ["Budget", budget],
     ["Source file", project.meta.sourceFileName],
   ];
 
@@ -57,26 +54,26 @@ export function ProjectDetailsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {sections.map((section) => {
-          const Icon = SECTION_ICON[section.key];
-          return (
-            <Card key={section.key} className="flex flex-col">
+      {c.sections.length === 0 ? (
+        <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+          No narrative sections found on the charter card. Add blocks like
+          “Objectif”, “Pourquoi nous le faisons” and “Critère de succès” to the card.
+        </p>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {c.sections.map((section) => (
+            <Card key={section.title} className="flex flex-col">
               <CardHeader className="flex-row items-start gap-2 space-y-0">
-                <Icon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <CardTitle className="leading-snug">{section.title}</CardTitle>
               </CardHeader>
               <CardContent className="flex-1">
-                {section.body ? (
-                  <p className="whitespace-pre-line text-sm leading-relaxed">{section.body}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Not documented on the charter card.</p>
-                )}
+                <p className="whitespace-pre-line text-sm leading-relaxed">{section.body}</p>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

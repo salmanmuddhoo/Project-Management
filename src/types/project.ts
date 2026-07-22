@@ -17,6 +17,12 @@ export type Priority = "Critical" | "High" | "Medium" | "Low" | "";
 
 export type RagStatus = "Green" | "Amber" | "Red";
 
+/** A titled narrative block from the charter card (Objectif, Why, …). */
+export interface CharterSection {
+  title: string;
+  body: string;
+}
+
 /** Project Details › Project Charter card. */
 export interface ProjectCharter {
   projectName: string;
@@ -25,10 +31,16 @@ export interface ProjectCharter {
   planId: string;
   startDate: Date | null;
   endDate: Date | null;
-  /** Hours budget parsed from the charter label (e.g. "50 hrs"). */
+  /** Hours budget (null when the project is budgeted in cost only). */
   budgetHours: number | null;
+  /** Cost budget (null when budgeted in hours only). */
+  budgetCost: number | null;
+  /** Currency label for the cost budget (e.g. "Rs"). */
+  currency: string;
   manager: string;
-  /** Full charter notes (what/why/success criteria…). */
+  /** Named narrative sections (Objectif, Pourquoi…, Critère de succès, Livrable). */
+  sections: CharterSection[];
+  /** Raw charter card text. */
   notes: string;
 }
 
@@ -62,6 +74,8 @@ export interface Task {
   overdue: boolean;
   labels: string;
   notes: string;
+  /** Effort estimate in hours, parsed from a label like "3 days" / "2 hrs". */
+  estimateHours: number | null;
 }
 
 /** A fully parsed Planner board = one project. */

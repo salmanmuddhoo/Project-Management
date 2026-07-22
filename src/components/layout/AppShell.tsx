@@ -3,6 +3,7 @@ import {
   ClipboardList,
   Clock,
   FileUp,
+  Gauge,
   LayoutDashboard,
   ListTodo,
   Menu,
@@ -28,6 +29,7 @@ const NAV = [
   { to: "/resources", label: "Resources", icon: Users },
   { to: "/kanban", label: "Kanban", icon: ListTodo },
   { to: "/time", label: "Time", icon: Clock },
+  { to: "/evm", label: "EVM", icon: Gauge },
   { to: "/reports", label: "Reports", icon: FileBarChart2 },
   { to: "/import", label: "Import", icon: FileUp },
 ];

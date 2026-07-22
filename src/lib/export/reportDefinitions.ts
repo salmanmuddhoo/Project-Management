@@ -125,6 +125,32 @@ export const REPORTS: ReportDefinition[] = [
     ],
   },
   {
+    key: "evm",
+    title: "EVM Report",
+    description: "Earned Value Management metrics per project and unit.",
+    build: (snapshots) => [
+      {
+        title: "Earned Value Management",
+        headers: ["Project", "Unit", "% Complete", "% Planned", "BAC", "PV", "EV", "AC", "SPI", "CPI", "EAC", "VAC"],
+        rows: snapshots.flatMap((s) =>
+          s.evm.units.map((u) => {
+            const fmt = (v: number | null) => (v == null ? "—" : u.unit === "hours" ? `${Math.round(v)}h` : Math.round(v).toLocaleString());
+            return [
+              s.project.charter.projectName,
+              u.unit === "cost" && u.currency ? `Cost (${u.currency})` : u.unit,
+              `${Math.round(s.evm.percentComplete)}%`,
+              `${Math.round(s.evm.plannedPercent)}%`,
+              fmt(u.bac), fmt(u.pv), fmt(u.ev), fmt(u.ac),
+              u.spi == null ? "—" : u.spi.toFixed(2),
+              u.cpi == null ? "—" : u.cpi.toFixed(2),
+              fmt(u.eac), fmt(u.vac),
+            ];
+          }),
+        ),
+      },
+    ],
+  },
+  {
     key: "tasks",
     title: "Task Report",
     description: "Board tasks across all projects.",

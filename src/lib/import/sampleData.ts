@@ -1,12 +1,15 @@
 /**
- * Sample portfolio — generated in the real export formats so the demo flows
+ * Sample project — generated in the real export formats so the demo flows
  * through the exact same parsers as production files:
- *   • three Microsoft Planner board .xlsx files
- *   • one Timorc time-tracking .csv covering their codes
+ *   • a Microsoft Planner board .xlsx (single consolidated "Project Charter"
+ *     card: name, Timorc code, objective/why/success, deliverable, resources
+ *     and a budget in cost and/or hours; tasks carry effort estimates)
+ *   • a Timorc time-tracking .csv covering the board's code
  *
- * Board sheets use the genuine French Planner headers (SheetJS handles the
- * unicode). The time CSV uses ASCII headers/content so the Windows-1252
- * decoder round-trips cleanly.
+ * Three boards demonstrate the adaptable budget/EVM: both cost+hours, hours
+ * only, and cost only. Board sheets use French Planner headers (SheetJS
+ * handles the unicode); the time CSV is ASCII so the Windows-1252 decoder
+ * round-trips cleanly.
  */
 
 import * as XLSX from "xlsx";
@@ -37,6 +40,7 @@ interface CardDef {
   start?: string;
   end?: string;
   overdue?: boolean;
+  /** Used as the task effort estimate ("3 days", "2 hrs"). */
   labels?: string;
   notes?: string;
 }
@@ -60,34 +64,37 @@ interface BoardDef {
 
 function buildBoardFile(def: BoardDef): File {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.aoa_to_sheet([
-      ["ID du plan", "Nom du plan", "Date d'exportation"],
-      [def.planId, def.planName, iso(0)],
-    ]),
-    "Plan",
-  );
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.aoa_to_sheet([
-      ["ID de compartiment", "Nom du compartiment"],
-      ...def.buckets.map((b, i) => [`bucket-${i}`, b]),
-    ]),
-    "Catégories",
-  );
-  XLSX.utils.book_append_sheet(
-    wb,
-    XLSX.utils.aoa_to_sheet([CONS_HEADER, ...def.cards.map(consRow)]),
-    "Données consolidées",
-  );
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["ID du plan", "Nom du plan", "Date d'exportation"],
+    [def.planId, def.planName, iso(0)],
+  ]), "Plan");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ["ID de compartiment", "Nom du compartiment"],
+    ...def.buckets.map((b, i) => [`bucket-${i}`, b]),
+  ]), "Catégories");
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([CONS_HEADER, ...def.cards.map(consRow)]), "Données consolidées");
   const out = XLSX.write(wb, { type: "array", bookType: "xlsx" });
-  return new File([out], def.file, {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  });
+  return new File([out], def.file, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 }
 
 const BUCKETS = ["Project Details", "Backlog", "In progress", "Blocked", "Completed"];
+
+/** Build the consolidated Project Charter card notes. */
+function charterNotes(o: {
+  name: string; timorc: string; objective: string; why: string; success: string;
+  deliverable: string; resources: string[]; budget: string[];
+}): string {
+  return [
+    "Nom du Projet", o.name,
+    "Taches Timorc", o.timorc,
+    "Objectif", o.objective,
+    "Pourquoi nous le faisons", o.why,
+    "Critère de succès", o.success,
+    "Livrable Clès", o.deliverable,
+    "Resources", ...o.resources,
+    "Budget", ...o.budget,
+  ].join("\n");
+}
 
 const boards: BoardDef[] = [
   {
@@ -96,16 +103,22 @@ const boards: BoardDef[] = [
     planName: "Digital Onboarding",
     buckets: BUCKETS,
     cards: [
-      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-30), due: iso(30), labels: "80 hrs",
-        notes: "Ce que nous faisons\nDeliver a fully digital customer onboarding journey.\nPourquoi nous le faisons\nCut onboarding from 9 days to under 24h and reduce abandonment.\nComment savoir si c'est une réussite\nOnboarding < 24h and abandonment < 10% within the quarter." },
-      { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO1 - 100.001" },
-      { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nSarah Naidoo\nDeveloper\nJohn Okafor\nTester\nMarie Lin" },
-      { id: "t1", title: "Registration flow", bucket: "Completed", assignee: "John Okafor", priority: "Élevé", start: iso(-28), end: iso(-10), statut: "Terminées" },
-      { id: "t2", title: "Document upload UI", bucket: "In progress", assignee: "John Okafor", priority: "Élevé", start: iso(-8), due: iso(4), statut: "En cours" },
-      { id: "t3", title: "KYC integration", bucket: "In progress", assignee: "Sarah Naidoo", priority: "Urgent", start: iso(-6), due: iso(6), statut: "En cours" },
-      { id: "t4", title: "Manual review fallback", bucket: "Blocked", assignee: "Sarah Naidoo", priority: "Élevé", due: iso(-2), overdue: true },
-      { id: "t5", title: "Accessibility audit", bucket: "Backlog", assignee: "Marie Lin", priority: "Moyen", due: iso(18) },
-      { id: "t6", title: "E2E test suite", bucket: "Backlog", assignee: "Marie Lin", priority: "Élevé", due: iso(12) },
+      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-30), due: iso(30),
+        notes: charterNotes({
+          name: "Digital Onboarding", timorc: "DEMO1 - 100.001",
+          objective: "Deliver a fully digital customer onboarding journey.",
+          why: "Cut onboarding from 9 days to under 24h and reduce abandonment.",
+          success: "Onboarding < 24h and abandonment < 10% within the quarter.",
+          deliverable: "Live onboarding portal",
+          resources: ["Project Manager: Sarah Naidoo", "Developer: John Okafor", "Tester: Marie Lin"],
+          budget: ["Cost: Rs 900,000", "Hours: 80"],
+        }) },
+      { id: "t1", title: "Registration flow", bucket: "Completed", assignee: "John Okafor", priority: "Élevé", labels: "3 days", start: iso(-28), end: iso(-10), statut: "Terminées" },
+      { id: "t2", title: "Document upload UI", bucket: "In progress", assignee: "John Okafor", priority: "Élevé", labels: "2 days", start: iso(-8), due: iso(4), statut: "En cours" },
+      { id: "t3", title: "KYC integration", bucket: "In progress", assignee: "Sarah Naidoo", priority: "Urgent", labels: "4 days", start: iso(-6), due: iso(6), statut: "En cours" },
+      { id: "t4", title: "Manual review fallback", bucket: "Blocked", assignee: "Sarah Naidoo", priority: "Élevé", labels: "1 day", due: iso(-2), overdue: true },
+      { id: "t5", title: "Accessibility audit", bucket: "Backlog", assignee: "Marie Lin", priority: "Moyen", labels: "2 days", due: iso(18) },
+      { id: "t6", title: "E2E test suite", bucket: "Backlog", assignee: "Marie Lin", priority: "Élevé", labels: "3 days", due: iso(12) },
     ],
   },
   {
@@ -114,15 +127,21 @@ const boards: BoardDef[] = [
     planName: "Data Platform Migration",
     buckets: BUCKETS,
     cards: [
-      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-60), due: iso(-5), labels: "120 hrs",
-        notes: "Ce que nous faisons\nMigrate the on-premise warehouse to a cloud lakehouse.\nPourquoi nous le faisons\nCurrent platform is end-of-life within 12 months.\nComment savoir si c'est une réussite\n100% of critical pipelines migrated with zero data loss." },
-      { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO2 - 200.010" },
-      { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nMiguel Santos\nData Engineer\nElena Petrova\nBI Lead\nTom Becker" },
-      { id: "t1", title: "Lakehouse foundation", bucket: "Completed", assignee: "Elena Petrova", start: iso(-58), end: iso(-40), statut: "Terminées" },
-      { id: "t2", title: "Migrate finance pipelines", bucket: "In progress", assignee: "Elena Petrova", priority: "Urgent", due: iso(-3), overdue: true, statut: "En cours" },
-      { id: "t3", title: "Rebuild exec dashboards", bucket: "In progress", assignee: "Tom Becker", priority: "Urgent", due: iso(-1), overdue: true, statut: "En cours" },
-      { id: "t4", title: "Reconcile sales data", bucket: "Blocked", assignee: "Tom Becker", priority: "Élevé", due: iso(4) },
-      { id: "t5", title: "Legacy decommission plan", bucket: "Backlog", assignee: "Miguel Santos", priority: "Moyen", due: iso(20) },
+      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-60), due: iso(-5),
+        notes: charterNotes({
+          name: "Data Platform Migration", timorc: "DEMO2 - 200.010",
+          objective: "Migrate the on-premise warehouse to a cloud lakehouse.",
+          why: "Current platform is end-of-life within 12 months.",
+          success: "100% of critical pipelines migrated with zero data loss.",
+          deliverable: "Cloud lakehouse in production",
+          resources: ["Project Manager: Miguel Santos", "Data Engineer: Elena Petrova", "BI Lead: Tom Becker"],
+          budget: ["Hours: 120"], // hours-only budget
+        }) },
+      { id: "t1", title: "Lakehouse foundation", bucket: "Completed", assignee: "Elena Petrova", labels: "5 days", start: iso(-58), end: iso(-40), statut: "Terminées" },
+      { id: "t2", title: "Migrate finance pipelines", bucket: "In progress", assignee: "Elena Petrova", priority: "Urgent", labels: "8 days", due: iso(-3), overdue: true, statut: "En cours" },
+      { id: "t3", title: "Rebuild exec dashboards", bucket: "In progress", assignee: "Tom Becker", priority: "Urgent", labels: "4 days", due: iso(-1), overdue: true, statut: "En cours" },
+      { id: "t4", title: "Reconcile sales data", bucket: "Blocked", assignee: "Tom Becker", priority: "Élevé", labels: "3 days", due: iso(4) },
+      { id: "t5", title: "Legacy decommission plan", bucket: "Backlog", assignee: "Miguel Santos", priority: "Moyen", labels: "2 days", due: iso(20) },
     ],
   },
   {
@@ -131,14 +150,20 @@ const boards: BoardDef[] = [
     planName: "Workplace Modernization",
     buckets: BUCKETS,
     cards: [
-      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-10), due: iso(120), labels: "60 hrs",
-        notes: "Ce que nous faisons\nModernize collaboration tooling and meeting rooms across HQ.\nPourquoi nous le faisons\nHybrid work exposes outdated meeting technology.\nComment savoir si c'est une réussite\n90% weekly active usage after three months." },
-      { id: "c2", title: "Taches Timorc", bucket: "Project Details", notes: "DEMO3 - 300.005" },
-      { id: "c3", title: "Resources", bucket: "Project Details", notes: "Project Manager\nFatima Rashid\nEngineer\nDaniel Kim\nChange Manager\nGrace Mwangi" },
-      { id: "t1", title: "Pilot floor AV install", bucket: "In progress", assignee: "Daniel Kim", priority: "Élevé", start: iso(-6), due: iso(15), statut: "En cours" },
-      { id: "t2", title: "Wave 1 hardware order", bucket: "Completed", assignee: "Daniel Kim", start: iso(-8), end: iso(-2), statut: "Terminées" },
-      { id: "t3", title: "Pilot user survey", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Moyen", due: iso(22) },
-      { id: "t4", title: "Champions network setup", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Faible", due: iso(40) },
+      { id: "c1", title: "Project Charter", bucket: "Project Details", start: iso(-10), due: iso(120),
+        notes: charterNotes({
+          name: "Workplace Modernization", timorc: "DEMO3 - 300.005",
+          objective: "Modernize collaboration tooling and meeting rooms across HQ.",
+          why: "Hybrid work exposes outdated meeting technology.",
+          success: "90% weekly active usage after three months.",
+          deliverable: "40 modernized meeting rooms",
+          resources: ["Project Manager: Fatima Rashid", "Engineer: Daniel Kim", "Change Manager: Grace Mwangi"],
+          budget: ["Cost: Rs 600,000"], // cost-only budget
+        }) },
+      { id: "t1", title: "Pilot floor AV install", bucket: "In progress", assignee: "Daniel Kim", priority: "Élevé", labels: "4 days", start: iso(-6), due: iso(15), statut: "En cours" },
+      { id: "t2", title: "Wave 1 hardware order", bucket: "Completed", assignee: "Daniel Kim", labels: "1 day", start: iso(-8), end: iso(-2), statut: "Terminées" },
+      { id: "t3", title: "Pilot user survey", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Moyen", labels: "2 days", due: iso(22) },
+      { id: "t4", title: "Champions network setup", bucket: "Backlog", assignee: "Grace Mwangi", priority: "Faible", labels: "3 days", due: iso(40) },
     ],
   },
 ];
@@ -151,17 +176,14 @@ interface TimeSpec {
   projet: string;
   code: string;
   task: string;
-  people: Array<{ name: string; total: number }>; // total man-days spread over days
+  people: Array<{ name: string; total: number }>;
 }
 
 const timeSpecs: TimeSpec[] = [
-  // Onboarding: budget 80h => ~11.4 man-days@7. Log ~8 days => ~56h (~70%).
   { projet: "DEMO1 - Digital Onboarding", code: "DEMO1 - 100.001", task: "Onboarding build", people: [
-    { name: "John Okafor", total: 4 }, { name: "Sarah Naidoo", total: 3 }, { name: "Marie Lin", total: 1 } ] },
-  // Data Platform: budget 120h => ~17 days. Log ~20 days => ~140h (over budget).
+    { name: "Sarah Naidoo", total: 3 }, { name: "John Okafor", total: 4 }, { name: "Marie Lin", total: 1 } ] },
   { projet: "DEMO2 - Data Platform Migration", code: "DEMO2 - 200.010", task: "Migration", people: [
     { name: "Elena Petrova", total: 12 }, { name: "Tom Becker", total: 8 } ] },
-  // Workplace: budget 60h => ~8.6 days. Log ~2 days => ~14h (early).
   { projet: "DEMO3 - Workplace Modernization", code: "DEMO3 - 300.005", task: "Rollout", people: [
     { name: "Daniel Kim", total: 1.5 }, { name: "Grace Mwangi", total: 0.5 } ] },
 ];
@@ -170,15 +192,12 @@ function buildTimeCsv(): File {
   const lines = [TIME_HEADER];
   for (const spec of timeSpecs) {
     for (const person of spec.people) {
-      // Spread the total over ~5 working days as 0.25-step daily rows.
       const perDay = Math.round((person.total / 5) * 4) / 4 || 0.25;
       let remaining = person.total;
       let dayOffset = -20;
       while (remaining > 0.01) {
         const spent = Math.min(perDay, remaining);
-        lines.push(
-          [spec.projet, person.name, spec.code, spec.task, "", "", "TSTM - Testing", ddmmyy(dayOffset), spent.toFixed(4), "20", ""].join(";"),
-        );
+        lines.push([spec.projet, person.name, spec.code, spec.task, "", "", "TSTM - Testing", ddmmyy(dayOffset), spent.toFixed(4), "20", ""].join(";"));
         remaining -= spent;
         dayOffset += 2;
       }

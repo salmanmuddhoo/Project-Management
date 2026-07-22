@@ -15,24 +15,45 @@ Export a plan from Microsoft Planner ("Export plan to Excel"). The app reads:
 
 Headers are matched case-insensitively in French **or** English.
 
-### The `Project Details` bucket
+### The `Project Details` bucket → the Project Charter card
 
-Three specially-named cards in this bucket define the project (they are not
-treated as work tasks):
+A single **Project Charter** card defines the project. Its **Start date** and
+**Due date** are the project window; its **notes** hold everything else as
+labeled blocks (each label on its own line, French or English, accent-tolerant):
 
-- **Project Charter** — the card's **Start date** and **Due date** are the
-  project window; a label like **`50 hrs`** is the hours budget; the **notes**
-  hold the full charter (what / why / success criteria).
-- **Taches Timorc** — the **notes** hold the Timorc code(s), one per line
-  (e.g. `MAURITIUS9 - 100.003`). These match the time export.
-- **Resources** — the **notes** list the team as role/name pairs, two lines
-  each (e.g. `Project Manager` / `Salman Muddhoo`).
+- **Nom du Projet** — the project name.
+- **Taches Timorc** — the Timorc code(s) that match the time export (e.g.
+  `Mauritius9 - 100.003`).
+- **Objectif** / **Pourquoi nous le faisons** / **Critère de succès** /
+  **Livrable Clès** — narrative sections shown on the Project Details tab.
+- **Resources** — the team, one `Role: Name` per line
+  (e.g. `Project Manager: Salman Muddhoo`).
+- **Budget** — cost and/or hours, e.g. `Cost: Rs 1,200,000` and `Hours: 50`.
+  A project may be budgeted in hours only, cost only, or both.
+
+Older exports with separate **Taches Timorc** and **Resources** cards, and an
+hours label like `50 hrs`, are still supported as a fallback.
 
 ### Work tasks
 
 Every card in any **other** bucket is a work task. The **bucket** is its status
-/ Kanban column; start, due and end dates, priority, assignee, labels, notes
-and the overdue flag are read per card.
+/ Kanban column; start, due and end dates, priority, assignee, notes and the
+overdue flag are read per card. A duration in the **label** (`3 days`, `2 hrs`)
+is the task's **effort estimate** — used for effort-weighted progress and EVM.
+
+## Earned Value Management (EVM)
+
+Computed from the budget, progress and time logged, in whichever unit(s) the
+budget provides:
+
+- **% complete** = effort-weighted completion (by task estimates) when present,
+  else task count.
+- **Planned %** = time elapsed against the charter start→end window.
+- **Actual Cost** = hours consumed (from Timorc); priced into cost via
+  `rate = cost budget ÷ hours budget` when both are given.
+- SPI (schedule) is always available; CPI/EAC/ETC/VAC per unit need Actual Cost
+  in that unit. Cost-only budgets show SPI and value/variance but not CPI/EAC
+  unless an hours budget provides a rate.
 
 ## 2. Timorc time-tracking export (`.csv` or `.xlsx`)
 
