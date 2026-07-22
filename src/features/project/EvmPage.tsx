@@ -13,7 +13,8 @@ import { useChartTheme } from "@/components/charts/chartTheme";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EvmUnit } from "@/lib/metrics/evm";
-import { formatCost } from "@/lib/utils";
+import { HOURS_PER_DAY } from "@/lib/config";
+import { formatCost, formatNumber } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
 const idx = (v: number | null) => (v == null ? "—" : v.toFixed(2));
@@ -59,18 +60,33 @@ export function EvmPage() {
   ];
   const tick = { fill: theme.tickInk, fontSize: 11 };
 
-  const rows: Array<[string, (u: EvmUnit) => string]> = [
-    ["Budget at completion (BAC)", (u) => fmt(u, u.bac)],
-    ["Planned value (PV)", (u) => fmt(u, u.pv)],
-    ["Earned value (EV)", (u) => fmt(u, u.ev)],
-    ["Actual cost (AC)", (u) => fmt(u, u.ac)],
-    ["Schedule variance (SV = EV−PV)", (u) => fmt(u, u.sv)],
-    ["Cost variance (CV = EV−AC)", (u) => fmt(u, u.cv)],
-    ["Schedule perf. index (SPI)", (u) => idx(u.spi)],
-    ["Cost perf. index (CPI)", (u) => idx(u.cpi)],
-    ["Estimate at completion (EAC)", (u) => fmt(u, u.eac)],
-    ["Estimate to complete (ETC)", (u) => fmt(u, u.etc)],
-    ["Variance at completion (VAC)", (u) => fmt(u, u.vac)],
+  const rows: Array<{ label: string; formula: string; get: (u: EvmUnit) => string }> = [
+    { label: "Budget at completion (BAC)", formula: "from the charter budget", get: (u) => fmt(u, u.bac) },
+    { label: "Planned value (PV)", formula: "% planned × BAC", get: (u) => fmt(u, u.pv) },
+    { label: "Earned value (EV)", formula: "% complete × BAC", get: (u) => fmt(u, u.ev) },
+    { label: "Actual cost (AC)", formula: "hours logged (× rate for cost)", get: (u) => fmt(u, u.ac) },
+    { label: "Schedule variance (SV)", formula: "EV − PV", get: (u) => fmt(u, u.sv) },
+    { label: "Cost variance (CV)", formula: "EV − AC", get: (u) => fmt(u, u.cv) },
+    { label: "Schedule perf. index (SPI)", formula: "EV ÷ PV", get: (u) => idx(u.spi) },
+    { label: "Cost perf. index (CPI)", formula: "EV ÷ AC", get: (u) => idx(u.cpi) },
+    { label: "Estimate at completion (EAC)", formula: "BAC ÷ CPI", get: (u) => fmt(u, u.eac) },
+    { label: "Estimate to complete (ETC)", formula: "EAC − AC", get: (u) => fmt(u, u.etc) },
+    { label: "Variance at completion (VAC)", formula: "BAC − EAC", get: (u) => fmt(u, u.vac) },
+  ];
+
+  const c = snapshot.project.charter;
+  const rate = c.budgetHours && c.budgetHours > 0 && c.budgetCost != null ? c.budgetCost / c.budgetHours : null;
+  const elapsedDays = metrics.durationDays != null ? Math.round((evm.plannedPercent / 100) * metrics.durationDays) : null;
+  const inputs: Array<[string, string, string]> = [
+    ["% complete", `${Math.round(evm.percentComplete)}%`, metrics.estimateHoursTotal > 0
+      ? `earned ${formatNumber(metrics.estimateHoursDone)}h of ${formatNumber(metrics.estimateHoursTotal)}h estimated — Σ(estimate × Avancement) ÷ Σ(estimate)`
+      : "average of task progress"],
+    ["% planned", `${Math.round(evm.plannedPercent)}%`, elapsedDays != null && metrics.durationDays != null
+      ? `${elapsedDays} of ${metrics.durationDays} days elapsed (time-elapsed baseline)` : "time elapsed on the charter dates"],
+    ["Actual cost (AC)", `${Math.round(metrics.consumedHours)}h`, `${formatNumber(metrics.consumedDays)} man-days logged in Timorc × ${HOURS_PER_DAY}h`],
+    ["Budget (BAC)", [c.budgetHours != null ? `${Math.round(c.budgetHours)}h` : null, c.budgetCost != null ? formatCost(c.budgetCost, c.currency) : null].filter(Boolean).join(" · ") || "—", "from the charter Budget block"],
+    ...(rate != null ? [["Rate", formatCost(rate, c.currency) + "/h", "cost budget ÷ hours budget — prices Timorc hours into cost"] as [string, string, string]] : []),
+    ["Conversion", `1 day = ${HOURS_PER_DAY} hours`, "used for task estimates and Timorc man-days"],
   ];
 
   return (
@@ -92,6 +108,30 @@ export function EvmPage() {
         <KpiTile label="Var. at completion" value={fmt(primary, primary.vac)}
           tone={primary.vac == null ? "default" : primary.vac >= 0 ? "good" : "critical"} />
       </div>
+
+      <Card>
+        <CardHeader><CardTitle>Inputs &amp; assumptions</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Input</TableHead>
+                <TableHead>Value</TableHead>
+                <TableHead>How it's obtained</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {inputs.map(([label, value, how]) => (
+                <TableRow key={label}>
+                  <TableCell className="font-medium">{label}</TableCell>
+                  <TableCell className="tnum">{value}</TableCell>
+                  <TableCell className="text-muted-foreground">{how}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title={`Planned vs Earned vs Actual (${primary.unit})`} description="The three EVM curves at today">
@@ -133,15 +173,17 @@ export function EvmPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Metric</TableHead>
+                <TableHead>Formula</TableHead>
                 {evm.units.map((u) => (
                   <TableHead key={u.unit} className="text-right capitalize">{u.unit === "cost" && u.currency ? `Cost (${u.currency})` : u.unit}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(([label, get]) => (
+              {rows.map(({ label, formula, get }) => (
                 <TableRow key={label}>
                   <TableCell className="font-medium">{label}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formula}</TableCell>
                   {evm.units.map((u) => (
                     <TableCell key={u.unit} className="tnum text-right">{get(u)}</TableCell>
                   ))}
