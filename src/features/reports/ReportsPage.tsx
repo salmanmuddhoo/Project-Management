@@ -42,13 +42,14 @@ export function ReportsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">Reports</h1>
+        <h1 className="text-xl font-semibold">Report</h1>
         <p className="text-sm text-muted-foreground">
-          Generated on demand for this project. Files download directly — nothing leaves the browser.
+          One combined project report — details and charter, status, time &amp; budget, EVM, tasks,
+          resources and governance in a single file. Generated in your browser; nothing leaves it.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {REPORTS.map((report) => (
           <Card key={report.key} className="flex flex-col">
             <CardHeader>

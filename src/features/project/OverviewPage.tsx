@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { HOURS_PER_DAY } from "@/lib/config";
 import { ragOf } from "@/lib/metrics/healthScore";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { cn, formatPct } from "@/lib/utils";
+import { cn, formatCost, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
 import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./widgets";
@@ -66,6 +66,9 @@ export function OverviewPage() {
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge variant="muted">Budget: {metrics.budgetHours == null ? "—" : `${Math.round(metrics.budgetHours)}h`}</Badge>
+              {project.charter.budgetCost != null && (
+                <Badge variant="muted">Cost budget: {formatCost(project.charter.budgetCost, project.charter.currency)}</Badge>
+              )}
               <Badge variant="muted">Consumed: {Math.round(metrics.consumedHours)}h</Badge>
               <Badge variant="muted">Remaining: {metrics.remainingHours == null ? "—" : `${Math.round(metrics.remainingHours)}h`}</Badge>
               <Badge variant="muted">{metrics.timeEntryCount} entries · {HOURS_PER_DAY}h/day</Badge>

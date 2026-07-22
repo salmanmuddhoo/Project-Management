@@ -1,12 +1,14 @@
 /**
- * Report definitions shared by the Excel and PDF renderers. Each report
- * builds simple tables from the computed snapshots — the renderers only
- * decide how a table looks, never what is in it, so both formats agree.
+ * Report definitions shared by the Excel and PDF renderers.
+ *
+ * A single **combined project report** builds the project details followed by
+ * every section (status, time & budget, EVM, tasks, resources, risk flags,
+ * governance) — one workbook / one document that tells the whole story.
  */
 
 import { computePortfolioMetrics, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { formatDate, formatNumber, formatPct } from "@/lib/utils";
+import { formatCost, formatDate, formatNumber, formatPct } from "@/lib/utils";
 
 export interface ReportTable {
   title: string;
@@ -22,160 +24,181 @@ export interface ReportDefinition {
 }
 
 const hrs = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v)}h`);
-const projectRows = (
-  snapshots: ProjectSnapshot[],
-  mapper: (s: ProjectSnapshot) => Array<string | number>,
-) => snapshots.map(mapper);
+const idx = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
+
+// ---------------------------------------------------------------------------
+// Section builders (each returns the tables for one section)
+// ---------------------------------------------------------------------------
+
+function projectDetailsTables(s: ProjectSnapshot): ReportTable[] {
+  const c = s.project.charter;
+  const budget = [
+    c.budgetHours != null ? `${Math.round(c.budgetHours)}h` : null,
+    c.budgetCost != null ? formatCost(c.budgetCost, c.currency) : null,
+  ].filter(Boolean).join(" · ") || "—";
+
+  const tables: ReportTable[] = [
+    {
+      title: "Project Details",
+      headers: ["Field", "Value"],
+      rows: [
+        ["Project", c.projectName],
+        ["Code", c.projectCode || "—"],
+        ["Project manager", c.manager || "—"],
+        ["Timorc code(s)", s.project.timorcCodes.map((t) => t.code).join(", ") || "—"],
+        ["Start date", formatDate(c.startDate)],
+        ["End date", formatDate(c.endDate)],
+        ["Budget", budget],
+        ["Progress", formatPct(s.metrics.overallProgressPct)],
+        ["Health", `${s.health.score} (${s.health.rag})`],
+        ["Source file", s.project.meta.sourceFileName],
+      ],
+    },
+  ];
+  if (c.sections.length > 0) {
+    tables.push({
+      title: "Charter",
+      headers: ["Section", "Content"],
+      rows: c.sections.map((sec) => [sec.title, sec.body]),
+    });
+  }
+  return tables;
+}
+
+function statusTable(s: ProjectSnapshot): ReportTable {
+  return {
+    title: "Status",
+    headers: ["Metric", "Value"],
+    rows: [
+      ["Time elapsed", formatPct(s.metrics.timeElapsedPct)],
+      ["Progress", formatPct(s.metrics.taskCompletionPct)],
+      ["Days remaining", s.metrics.daysRemaining ?? "—"],
+      ["Tasks", `${s.metrics.tasksCompleted}/${s.metrics.tasksTotal} done`],
+      ["In progress / Blocked / Overdue", `${s.metrics.tasksInProgress} / ${s.metrics.tasksBlocked} / ${s.metrics.tasksOverdue}`],
+      ["Risk flags", s.health.reasons.map((r) => r.message).join(" | ") || "None"],
+    ],
+  };
+}
+
+function timeBudgetTables(s: ProjectSnapshot): ReportTable[] {
+  const c = s.project.charter;
+  return [
+    {
+      title: "Time & Budget",
+      headers: ["Metric", "Value"],
+      rows: [
+        ["Hours budget", hrs(c.budgetHours)],
+        ["Cost budget", c.budgetCost == null ? "—" : formatCost(c.budgetCost, c.currency)],
+        ["Hours consumed", hrs(s.metrics.consumedHours)],
+        ["Hours remaining", hrs(s.metrics.remainingHours)],
+        ["Consumed %", formatPct(s.metrics.budgetConsumedPct)],
+        ["Over budget", s.metrics.overBudget ? "YES" : "No"],
+      ],
+    },
+    {
+      title: "Hours by Person",
+      headers: ["Person", "Days", "Hours"],
+      rows: s.metrics.byResource.map((r) => [r.name, formatNumber(r.days), hrs(r.hours)]),
+    },
+  ];
+}
+
+function evmTable(s: ProjectSnapshot): ReportTable {
+  return {
+    title: "EVM",
+    headers: ["Metric", ...s.evm.units.map((u) => (u.unit === "cost" && u.currency ? `Cost (${u.currency})` : "Hours"))],
+    rows: (() => {
+      const fmt = (unitIdx: number, v: number | null) => {
+        const u = s.evm.units[unitIdx];
+        if (v == null) return "—";
+        return u.unit === "hours" ? `${Math.round(v)}h` : Math.round(v).toLocaleString();
+      };
+      const line = (label: string, get: (uIdx: number) => string) => [label, ...s.evm.units.map((_, i) => get(i))];
+      return [
+        ["% complete", ...s.evm.units.map(() => formatPct(s.evm.percentComplete))],
+        ["% planned", ...s.evm.units.map(() => formatPct(s.evm.plannedPercent))],
+        line("BAC", (i) => fmt(i, s.evm.units[i].bac)),
+        line("PV", (i) => fmt(i, s.evm.units[i].pv)),
+        line("EV", (i) => fmt(i, s.evm.units[i].ev)),
+        line("AC", (i) => fmt(i, s.evm.units[i].ac)),
+        line("SPI", (i) => idx(s.evm.units[i].spi)),
+        line("CPI", (i) => idx(s.evm.units[i].cpi)),
+        line("EAC", (i) => fmt(i, s.evm.units[i].eac)),
+        line("VAC", (i) => fmt(i, s.evm.units[i].vac)),
+      ];
+    })(),
+  };
+}
+
+function tasksTable(s: ProjectSnapshot): ReportTable {
+  return {
+    title: "Tasks",
+    headers: ["Task", "Bucket", "Assignee", "Priority", "Estimate", "Start", "Due", "End"],
+    rows: s.project.tasks.map((t) => [
+      t.title, t.bucket, t.assignee || "—", t.priority,
+      t.estimateHours == null ? "—" : `${Math.round(t.estimateHours)}h`,
+      formatDate(t.startDate), formatDate(t.dueDate), formatDate(t.endDate),
+    ]),
+  };
+}
+
+function resourcesTable(s: ProjectSnapshot): ReportTable {
+  const nameKey = (n: string) => n.toLowerCase().replace(/\s*\([^)]*\)\s*$/, "").trim();
+  const hoursByName = new Map<string, number>();
+  for (const r of s.metrics.byResource) hoursByName.set(nameKey(r.name), (hoursByName.get(nameKey(r.name)) ?? 0) + r.hours);
+  return {
+    title: "Resources",
+    headers: ["Name", "Role", "Hours logged"],
+    rows: s.project.resources.map((r) => [r.name, r.role || "—", hrs(hoursByName.get(nameKey(r.name)) ?? 0)]),
+  };
+}
+
+function governanceTable(s: ProjectSnapshot): ReportTable {
+  return {
+    title: "Governance",
+    headers: ["Check", "Result"],
+    rows: s.governance.checks.map((c) => [c.label, c.passed ? "PASS" : "FAIL"]),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The single combined report
+// ---------------------------------------------------------------------------
 
 export const REPORTS: ReportDefinition[] = [
   {
-    key: "executive",
-    title: "Executive Portfolio Report",
-    description: "Portfolio KPIs, per-project summary and top recommendations.",
+    key: "project",
+    title: "Project Report",
+    description:
+      "The complete project report — details and charter, status, time & budget, EVM, tasks, resources and governance in one file.",
     build: (snapshots) => {
+      const s = snapshots[0];
+      if (!s) return [];
       const p = computePortfolioMetrics(snapshots);
       return [
+        ...projectDetailsTables(s),
+        statusTable(s),
+        ...timeBudgetTables(s),
+        evmTable(s),
+        tasksTable(s),
+        resourcesTable(s),
         {
-          title: "Portfolio KPIs",
+          title: "Risk Flags",
+          headers: ["Severity", "Category", "Finding"],
+          rows: generateRecommendations(snapshots).map((r) => [r.severity.toUpperCase(), r.category, r.message]),
+        },
+        governanceTable(s),
+        {
+          title: "Summary",
           headers: ["KPI", "Value"],
           rows: [
-            ["Total Projects", p.totalProjects],
-            ["On Track (green)", p.onTrack],
-            ["At Risk (red)", p.atRisk],
-            ["Over Budget", p.overBudget],
-            ["Completed", p.completed],
-            ["Total Hours Budget", hrs(p.totalBudgetHours)],
-            ["Hours Consumed", hrs(p.consumedHours)],
-            ["Hours Remaining", hrs(p.remainingHours)],
-            ["Tasks Completed", `${p.tasksCompleted}/${p.tasksTotal}`],
-            ["Portfolio Health", `${p.portfolioHealthScore} (${p.portfolioRag})`],
+            ["Health", `${p.portfolioHealthScore} (${p.portfolioRag})`],
+            ["Progress", formatPct(s.metrics.overallProgressPct)],
+            ["Hours budget / consumed", `${hrs(p.totalBudgetHours)} / ${hrs(p.consumedHours)}`],
+            ["Tasks done", `${p.tasksCompleted}/${p.tasksTotal}`],
           ],
-        },
-        {
-          title: "Projects",
-          headers: ["Project", "Manager", "Progress", "Health", "Budget", "Consumed", "Consumed %", "Days Left", "Overdue Tasks"],
-          rows: projectRows(snapshots, (s) => [
-            s.project.charter.projectName,
-            s.project.charter.manager || "—",
-            formatPct(s.metrics.taskCompletionPct),
-            `${s.health.score} (${s.health.rag})`,
-            hrs(s.metrics.budgetHours),
-            hrs(s.metrics.consumedHours),
-            formatPct(s.metrics.budgetConsumedPct),
-            s.metrics.daysRemaining ?? "—",
-            s.metrics.tasksOverdue,
-          ]),
-        },
-        {
-          title: "Recommendations",
-          headers: ["Severity", "Category", "Recommendation"],
-          rows: generateRecommendations(snapshots).map((r) => [r.severity.toUpperCase(), r.category, r.message]),
         },
       ];
     },
-  },
-  {
-    key: "status",
-    title: "Project Status Report",
-    description: "Schedule, progress and forecast per project.",
-    build: (snapshots) => [
-      {
-        title: "Project Status",
-        headers: ["Project", "Code", "Manager", "Start", "End", "Elapsed %", "Progress %", "Days Left", "Health", "Risk reasons"],
-        rows: projectRows(snapshots, (s) => [
-          s.project.charter.projectName,
-          s.project.charter.projectCode,
-          s.project.charter.manager || "—",
-          formatDate(s.project.charter.startDate),
-          formatDate(s.project.charter.endDate),
-          formatPct(s.metrics.timeElapsedPct),
-          formatPct(s.metrics.taskCompletionPct),
-          s.metrics.daysRemaining ?? "—",
-          `${s.health.score} (${s.health.rag})`,
-          s.health.reasons.map((r) => r.message).join(" | ") || "None",
-        ]),
-      },
-    ],
-  },
-  {
-    key: "time",
-    title: "Time & Budget Report",
-    description: "Hours consumed vs budget, by project and by person.",
-    build: (snapshots) => [
-      {
-        title: "Budget vs Consumed (hours)",
-        headers: ["Project", "Timorc code(s)", "Budget", "Consumed", "Remaining", "Consumed %", "Over budget"],
-        rows: projectRows(snapshots, (s) => [
-          s.project.charter.projectName,
-          s.project.timorcCodes.map((c) => c.code).join(", ") || "—",
-          hrs(s.metrics.budgetHours),
-          hrs(s.metrics.consumedHours),
-          hrs(s.metrics.remainingHours),
-          formatPct(s.metrics.budgetConsumedPct),
-          s.metrics.overBudget ? "YES" : "",
-        ]),
-      },
-      {
-        title: "Hours by Person",
-        headers: ["Project", "Person", "Days", "Hours"],
-        rows: snapshots.flatMap((s) =>
-          s.metrics.byResource.map((r) => [s.project.charter.projectName, r.name, formatNumber(r.days), hrs(r.hours)]),
-        ),
-      },
-    ],
-  },
-  {
-    key: "tasks",
-    title: "Task Report",
-    description: "Board tasks across all projects.",
-    build: (snapshots) => [
-      {
-        title: "Tasks",
-        headers: ["Project", "Task", "Bucket", "Assignee", "Priority", "Start", "Due", "End", "Overdue"],
-        rows: snapshots.flatMap((s) =>
-          s.project.tasks.map((t) => [
-            s.project.charter.projectName, t.title, t.bucket, t.assignee || "—", t.priority,
-            formatDate(t.startDate), formatDate(t.dueDate), formatDate(t.endDate), t.overdue ? "YES" : "",
-          ]),
-        ),
-      },
-    ],
-  },
-  {
-    key: "risk",
-    title: "Risk Report",
-    description: "Computed risk reasons per project.",
-    build: (snapshots) => [
-      {
-        title: "Risks",
-        headers: ["Project", "Health", "Severity", "Risk"],
-        rows: snapshots.flatMap((s) =>
-          s.health.reasons.length > 0
-            ? s.health.reasons.map((r) => [s.project.charter.projectName, `${s.health.score} (${s.health.rag})`, r.severity.toUpperCase(), r.message])
-            : [[s.project.charter.projectName, `${s.health.score} (${s.health.rag})`, "—", "No risks flagged"]],
-        ),
-      },
-    ],
-  },
-  {
-    key: "governance",
-    title: "Governance Report",
-    description: "Governance compliance per project.",
-    build: (snapshots) => [
-      {
-        title: "Governance Scores",
-        headers: ["Project", "Score", "Failed Checks"],
-        rows: projectRows(snapshots, (s) => [
-          s.project.charter.projectName, s.governance.score, s.governance.failedChecks.join("; ") || "None",
-        ]),
-      },
-      {
-        title: "Check Detail",
-        headers: ["Project", "Check", "Result"],
-        rows: snapshots.flatMap((s) =>
-          s.governance.checks.map((c) => [s.project.charter.projectName, c.label, c.passed ? "PASS" : "FAIL"]),
-        ),
-      },
-    ],
   },
 ];

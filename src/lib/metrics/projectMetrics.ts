@@ -47,12 +47,18 @@ export interface ProjectMetrics {
   taskCompletionPct: number | null;
   byBucket: Array<{ bucket: string; count: number }>;
 
+  // Effort estimates (from task labels)
+  estimateHoursTotal: number;
+  estimateHoursDone: number;
+  /** Estimate-weighted completion; null when no estimates are present. */
+  effortCompletionPct: number | null;
+
   // People / codes
   byResource: ResourceTime[];
   byCode: CodeTime[];
   timeEntryCount: number;
 
-  /** Task-completion based progress (0–100). */
+  /** Progress (0–100): effort-weighted when estimates exist, else task count. */
   overallProgressPct: number;
 }
 
@@ -96,6 +102,14 @@ export function computeProjectMetrics(
     (t) => !isTaskDone(t) && (t.overdue || (t.dueDate != null && t.dueDate < today)),
   ).length;
   const taskCompletionPct = tasksTotal > 0 ? (tasksCompleted / tasksTotal) * 100 : null;
+
+  // Effort-weighted completion, when tasks carry estimates.
+  const estimateHoursTotal = project.tasks.reduce((s, t) => s + (t.estimateHours ?? 0), 0);
+  const estimateHoursDone = project.tasks
+    .filter(isTaskDone)
+    .reduce((s, t) => s + (t.estimateHours ?? 0), 0);
+  const effortCompletionPct =
+    estimateHoursTotal > 0 ? (estimateHoursDone / estimateHoursTotal) * 100 : null;
 
   const bucketCounts = new Map<string, number>();
   for (const b of project.buckets) bucketCounts.set(b, 0);
@@ -152,11 +166,15 @@ export function computeProjectMetrics(
     taskCompletionPct,
     byBucket,
 
+    estimateHoursTotal,
+    estimateHoursDone,
+    effortCompletionPct,
+
     byResource: byResource.sort((a, b) => b.hours - a.hours),
     byCode,
     timeEntryCount: entries.length,
 
-    overallProgressPct: clamp(taskCompletionPct ?? 0, 0, 100),
+    overallProgressPct: clamp(effortCompletionPct ?? taskCompletionPct ?? 0, 0, 100),
   };
 }
 

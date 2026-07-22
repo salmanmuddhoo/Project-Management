@@ -29,11 +29,16 @@ replace, delivery tools like Microsoft Planner or Jira.
 - **Executive dashboard** — KPIs, project health, hours budget-vs-consumed and
   remaining, progress, tasks-by-bucket, hours-by-person, and recommendations.
 - **Single project**, with a dedicated menu each: **Overview** (KPIs, hours
-  vs budget, health & risk), **Project Details** (charter facts + the three
-  sections *Ce que nous faisons* / *Pourquoi nous le faisons* / *Comment savoir
-  si c'est une réussite*), **Resources** (team + hours logged), **Kanban**,
-  **Time** (consumed vs budget, by person, by task code) and **Reports**.
+  vs budget, health & risk), **Project Details** (charter facts + the narrative
+  sections *Objectif* / *Pourquoi nous le faisons* / *Critère de succès* /
+  *Livrable clé*), **Resources** (team + hours logged), **Kanban**, **Time**
+  (consumed vs budget, by person, by task code), **EVM** and **Reports**.
   Importing a board replaces the current project.
+- **Adaptable budget** — the charter budget can be **hours, cost, or both**
+  (e.g. `Cost: Rs 1,200,000` and `Hours: 50`); tasks carry effort estimates
+  (`3 days`, `2 hrs`) for effort-weighted progress.
+- **Earned Value Management** — SPI, CPI, EAC, ETC, VAC in whichever units the
+  budget provides (time-elapsed baseline), with a plain-language read-out.
 - **Kanban board** — generated from the plan's buckets, session-only drag & drop.
 - **Global search** (Ctrl/Cmd-K) across the project, tasks, people and codes.
 - **Reports** — Executive, Status, Time & Budget, Task, Risk and Governance,

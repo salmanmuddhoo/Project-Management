@@ -56,6 +56,16 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+/** Format a cost with its currency label, e.g. "Rs 1,200,000". */
+export function formatCost(
+  amount: number | null | undefined,
+  currency: string,
+): string {
+  if (amount == null || Number.isNaN(amount)) return "—";
+  const num = Math.round(amount).toLocaleString();
+  return currency ? `${currency} ${num}` : num;
+}
+
 /** Safe division: returns `fallback` when the denominator is 0/undefined. */
 export function ratio(
   numerator: number,
