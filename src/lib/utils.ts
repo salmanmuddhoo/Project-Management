@@ -38,6 +38,16 @@ export function formatNumber(value: number | null | undefined): string {
   return numberFmt.format(value);
 }
 
+/**
+ * Format an hours value with a trailing "h", keeping a fraction when the
+ * estimate isn't whole (e.g. 0.5 → "0.5h", 3 → "3h", 1.5 → "1.5h").
+ */
+export function formatHours(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const rounded = Math.round(value * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}h`;
+}
+
 export function formatPct(value: number | null | undefined): string {
   if (value == null || Number.isNaN(value)) return "—";
   return `${Math.round(value)}%`;

@@ -8,7 +8,7 @@
 
 import { computePortfolioMetrics, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { formatCost, formatDate, formatNumber, formatPct } from "@/lib/utils";
+import { formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
 
 export interface ReportTable {
   title: string;
@@ -139,7 +139,7 @@ function tasksTable(s: ProjectSnapshot): ReportTable {
     headers: ["Task", "Bucket", "Assignee", "Priority", "Estimate", "Progress", "Start", "Due", "End"],
     rows: s.project.tasks.map((t) => [
       t.title, t.bucket, t.assignee || "—", t.priority,
-      t.estimateHours == null ? "—" : `${Math.round(t.estimateHours)}h`,
+      formatHours(t.estimateHours),
       `${done(t) ? 100 : Math.max(0, Math.min(100, t.progressPct ?? 0))}%`,
       formatDate(t.startDate), formatDate(t.dueDate), formatDate(t.endDate),
     ]),
