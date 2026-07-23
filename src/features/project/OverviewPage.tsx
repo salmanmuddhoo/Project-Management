@@ -20,7 +20,13 @@ import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./wid
 export function OverviewPage() {
   const snapshot = useActiveSnapshot();
   if (!snapshot) return <EmptyState />;
-  const { project, metrics, health } = snapshot;
+  const { project, metrics, health, evm } = snapshot;
+
+  // EVM tiles (mirror the EVM page), shown when a budget is present.
+  const primary = evm.units[0];
+  const idx = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
+  const evmVal = (v: number | null) =>
+    v == null ? "—" : primary.unit === "hours" ? `${Math.round(v)}h` : formatCost(v, primary.currency);
 
   return (
     <div className="space-y-5">
@@ -47,6 +53,18 @@ export function OverviewPage() {
         <KpiTile label="Health" value={health.score} hint={health.rag}
           tone={health.rag === "Green" ? "good" : health.rag === "Amber" ? "warning" : "critical"} />
       </div>
+
+      {evm.available && primary && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <KpiTile label="Schedule (SPI)" value={idx(evm.spi)} tone={evm.spi == null ? "default" : evm.spi >= 1 ? "good" : "warning"}
+            hint={evm.spi == null ? "" : evm.spi >= 1 ? "on/ahead" : "behind"} />
+          <KpiTile label="Cost (CPI)" value={idx(primary.cpi)} tone={primary.cpi == null ? "default" : primary.cpi >= 1 ? "good" : "critical"}
+            hint={primary.cpi == null ? "" : primary.cpi >= 1 ? "on/under" : "over"} />
+          <KpiTile label="Forecast (EAC)" value={evmVal(primary.eac)} hint={`budget ${evmVal(primary.bac)}`} />
+          <KpiTile label="Var. at completion" value={evmVal(primary.vac)}
+            tone={primary.vac == null ? "default" : primary.vac >= 0 ? "good" : "critical"} />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
