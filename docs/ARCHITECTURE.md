@@ -104,6 +104,13 @@ overdue/blocked tasks). Finally, **hard-stop rules** force the RAG to Red
 regardless of the weighted score — past the end date and incomplete, ≥ 110 %
 of the hours budget consumed, or ≥ 5 overdue tasks.
 
+**Forecast** — the PMO executive read-out: *on current performance, will the
+project finish within budget and on time?* Budget is projected from EVM's
+**EAC/VAC**; the timeline from **SPI** (planned duration ÷ SPI ⇒ projected
+finish date vs the charter end). Each side is flagged within/over against a
+small tolerance, and combined into an overall on-track / at-risk / off-track
+verdict shown on the Overview and EVM pages and in the report.
+
 **Governance** — a checklist over the board & time data (charter documented,
 dates set, hours budget, manager, resources, Timorc code linked, tasks created,
 time being logged, within budget, no overdue tasks) → a 0–100 score.

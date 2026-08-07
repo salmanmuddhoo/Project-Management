@@ -22,3 +22,11 @@ export const CPI_WARN = 0.9; // cost perf. index below this → budget reason
  */
 export const OVER_BUDGET_RED_PCT = 110; // consumed ≥ 110 % of budget → hard Red
 export const OVERDUE_TASKS_RED = 5; // this many overdue tasks → hard Red
+
+/**
+ * Forecast tolerances — how far the projected finish (from EAC/VAC and SPI)
+ * may drift from plan before it's flagged. A little slack avoids crying wolf
+ * over rounding-level variances.
+ */
+export const FORECAST_BUDGET_TOLERANCE_PCT = 5; // EAC within ±5 % of BAC ⇒ "within budget"
+export const FORECAST_SCHEDULE_TOLERANCE_PCT = 5; // finish within ±5 % of duration ⇒ "on time"
