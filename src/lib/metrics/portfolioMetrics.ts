@@ -31,13 +31,14 @@ export function buildSnapshot(
 ): ProjectSnapshot {
   const entries = entriesForProject(project, allEntries);
   const metrics = computeProjectMetrics(project, entries, today, hoursPerDay);
+  const evm = computeEvm(project.charter, metrics);
   return {
     project,
     entries,
     metrics,
-    health: computeHealthScore(metrics),
+    health: computeHealthScore(metrics, evm),
     governance: computeGovernance(project, metrics),
-    evm: computeEvm(project.charter, metrics),
+    evm,
   };
 }
 
