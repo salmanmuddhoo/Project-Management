@@ -12,13 +12,13 @@ export function exportReportToPdf(
   report: ReportDefinition,
   snapshots: ProjectSnapshot[],
 ): void {
-  const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+  // Portrait so the many key/value tables stay dense; every table fills the
+  // same margin box, so they are all the same width and stack left-aligned.
+  const doc = new jsPDF({ orientation: "portrait", unit: "pt" });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 40;
   const usableWidth = pageWidth - margin * 2;
-  // Cap each table's width by its column count so short key/value tables stop
-  // stretching across the whole page (which left large empty value columns).
-  const COL_BUDGET = 190;
 
   doc.setFontSize(20);
   doc.setTextColor(...BRAND);
@@ -36,27 +36,35 @@ export function exportReportToPdf(
     doc.setFontSize(14);
     doc.setTextColor(20);
     doc.text(table.title, margin, cursorY);
-    // Key/value tables (2 cols) get a compact bold label column; wider tables
-    // keep the label column readable but flexible.
-    const labelCol: Record<string, Partial<{ cellWidth: number; fontStyle: "bold" }>> =
+    // 2-column key/value tables get a fixed bold label column so labels line up;
+    // wider tables (e.g. Tasks) let autoTable size columns to their content.
+    const columnStyles: Record<string, Partial<{ cellWidth: number; fontStyle: "bold" }>> =
       table.headers.length <= 2 ? { 0: { cellWidth: 150, fontStyle: "bold" } } : {};
     autoTable(doc, {
       startY: cursorY + 12,
       head: [table.headers],
       body: table.rows.map((r) => r.map((c) => String(c))),
-      styles: { fontSize: 10, cellPadding: { top: 3.5, bottom: 3.5, left: 6, right: 6 }, overflow: "linebreak", valign: "middle" },
-      headStyles: { fillColor: BRAND, textColor: 255, fontStyle: "bold", fontSize: 10 },
+      // Fixed full width for EVERY table → identical size, left-aligned, stacked.
+      tableWidth: usableWidth,
+      styles: {
+        fontSize: 9.5,
+        cellPadding: { top: 4, bottom: 4, left: 6, right: 6 },
+        overflow: "linebreak",
+        valign: "middle",
+        lineColor: [222, 226, 230],
+        lineWidth: 0.5,
+      },
+      headStyles: { fillColor: BRAND, textColor: 255, fontStyle: "bold", fontSize: 9.5 },
       alternateRowStyles: { fillColor: [245, 246, 248] },
-      columnStyles: labelCol,
-      tableWidth: Math.min(usableWidth, table.headers.length * COL_BUDGET),
+      columnStyles,
       margin: { left: margin, right: margin },
     });
     cursorY =
       (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
-        .finalY + 32;
-    if (cursorY > doc.internal.pageSize.getHeight() - 110) {
+        .finalY + 26;
+    if (cursorY > pageHeight - 90) {
       doc.addPage();
-      cursorY = 60;
+      cursorY = 56;
     }
   }
 
@@ -66,11 +74,7 @@ export function exportReportToPdf(
     doc.setPage(i);
     doc.setFontSize(8);
     doc.setTextColor(150);
-    doc.text(
-      `Page ${i} of ${pageCount}`,
-      pageWidth - 90,
-      doc.internal.pageSize.getHeight() - 24,
-    );
+    doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 50, pageHeight - 24);
   }
 
   doc.save(`${report.title.replace(/\s+/g, "-")}.pdf`);
