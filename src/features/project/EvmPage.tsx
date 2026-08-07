@@ -17,6 +17,8 @@ import { HOURS_PER_DAY } from "@/lib/config";
 import { formatCost, formatNumber } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
+import { ForecastCard } from "./ForecastCard";
+
 const idx = (v: number | null) => (v == null ? "—" : v.toFixed(2));
 
 function fmt(u: EvmUnit, v: number | null): string {
@@ -108,6 +110,8 @@ export function EvmPage() {
         <KpiTile label="Var. at completion" value={fmt(primary, primary.vac)}
           tone={primary.vac == null ? "default" : primary.vac >= 0 ? "good" : "critical"} />
       </div>
+
+      <ForecastCard forecast={snapshot.forecast} />
 
       <Card>
         <CardHeader><CardTitle>Inputs &amp; assumptions</CardTitle></CardHeader>

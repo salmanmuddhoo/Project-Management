@@ -15,6 +15,7 @@ import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { cn, formatCost, formatDate, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
+import { ForecastCard } from "./ForecastCard";
 import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./widgets";
 
 export function OverviewPage() {
@@ -66,6 +67,8 @@ export function OverviewPage() {
             tone={primary.vac == null ? "default" : primary.vac >= 0 ? "good" : "critical"} />
         </div>
       )}
+
+      <ForecastCard forecast={snapshot.forecast} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

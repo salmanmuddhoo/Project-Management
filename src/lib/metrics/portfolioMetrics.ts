@@ -10,6 +10,7 @@ import type { TimeEntry } from "@/types/time";
 import { HOURS_PER_DAY } from "@/lib/config";
 import { entriesForProject } from "@/lib/import/importFiles";
 import { computeEvm, type EvmResult } from "./evm";
+import { computeForecast, type ForecastResult } from "./forecast";
 import { computeGovernance, type GovernanceResult } from "./governance";
 import { computeHealthScore, ragOf, type HealthScore } from "./healthScore";
 import { computeProjectMetrics, type ProjectMetrics } from "./projectMetrics";
@@ -21,6 +22,7 @@ export interface ProjectSnapshot {
   health: HealthScore;
   governance: GovernanceResult;
   evm: EvmResult;
+  forecast: ForecastResult;
 }
 
 export function buildSnapshot(
@@ -39,6 +41,7 @@ export function buildSnapshot(
     health: computeHealthScore(metrics, evm),
     governance: computeGovernance(project, metrics),
     evm,
+    forecast: computeForecast(evm, metrics),
   };
 }
 

@@ -130,6 +130,33 @@ function evmTable(s: ProjectSnapshot): ReportTable {
   };
 }
 
+function forecastTable(s: ProjectSnapshot): ReportTable | null {
+  const f = s.forecast;
+  if (!f.available) return null;
+  const verdict = { on_track: "On track", at_risk: "At risk", off_track: "Off track", unknown: "Insufficient data" }[f.verdict];
+  const rows: Array<[string, string]> = [["Outlook", verdict], ["Summary", f.summary]];
+  if (f.schedule) {
+    rows.push(["Planned finish", formatDate(f.schedule.plannedEnd)]);
+    rows.push(["Forecast finish", formatDate(f.schedule.forecastEnd)]);
+    rows.push([
+      "Schedule variance",
+      f.schedule.daysVariance == null
+        ? "—"
+        : `${f.schedule.daysVariance > 0 ? "+" : ""}${f.schedule.daysVariance} day(s)${f.schedule.spi != null ? ` (SPI ${f.schedule.spi.toFixed(2)})` : ""}`,
+    ]);
+  }
+  if (f.budget) {
+    const unit = (v: number | null) => (v == null ? "—" : f.budget!.unit === "hours" ? `${Math.round(v)}h` : formatCost(v, f.budget!.currency));
+    rows.push(["Budget (BAC)", unit(f.budget.bac)]);
+    rows.push(["Forecast at completion (EAC)", unit(f.budget.eac)]);
+    rows.push([
+      "Variance at completion (VAC)",
+      f.budget.vac == null ? "—" : `${unit(f.budget.vac)}${f.budget.overrunPct != null ? ` (${f.budget.overrunPct > 0 ? "+" : ""}${Math.round(f.budget.overrunPct)}%)` : ""}`,
+    ]);
+  }
+  return { title: "Forecast", headers: ["Field", "Value"], rows };
+}
+
 function tasksTable(s: ProjectSnapshot): ReportTable {
   const done = (t: (typeof s.project.tasks)[number]) =>
     ["completed", "done", "terminé", "terminée", "terminées"].includes(t.bucket.trim().toLowerCase()) ||
@@ -179,11 +206,13 @@ export const REPORTS: ReportDefinition[] = [
       const s = snapshots[0];
       if (!s) return [];
       const p = computePortfolioMetrics(snapshots);
+      const forecast = forecastTable(s);
       return [
         ...projectDetailsTables(s),
         statusTable(s),
         ...timeBudgetTables(s),
         evmTable(s),
+        ...(forecast ? [forecast] : []),
         tasksTable(s),
         resourcesTable(s),
         {

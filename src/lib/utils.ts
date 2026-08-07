@@ -92,6 +92,11 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / MS_PER_DAY);
 }
 
+/** A new date `days` after `base` (days may be fractional or negative). */
+export function addDays(base: Date, days: number): Date {
+  return new Date(base.getTime() + days * 86_400_000);
+}
+
 /** Deterministic id from arbitrary text (session-scoped, not cryptographic). */
 export function hashId(text: string): string {
   let hash = 0;
