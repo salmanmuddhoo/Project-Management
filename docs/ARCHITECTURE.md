@@ -94,10 +94,15 @@ Per project: schedule (elapsed %, days remaining, overdue tasks); budget/time
 remaining, over-budget); delivery (task completion, blocked). Time by person
 and by task code roll up from the matched entries.
 
-**Health score** — three weighted dimensions: Schedule 35 %, Budget/time 35 %,
-Delivery 30 % → 0–100 + RAG (Green ≥ 80, Amber ≥ 60, Red < 60). Alongside the
+**Health score** — three weighted dimensions: Schedule 40 %, Budget/time 30 %,
+Delivery 30 % → 0–100 + RAG (Green ≥ 80, Amber ≥ 60, Red < 60). Where EVM is
+available the standard indices are blended in — **SPI** into Schedule and
+**CPI** into Budget. Dimensions with no data score a neutral 75. Alongside the
 score, concrete **risk reasons** are surfaced (over budget, budget burning
-ahead of delivery, behind schedule, past end date, overdue/blocked tasks).
+ahead of delivery, behind schedule, SPI/CPI below plan, past end date,
+overdue/blocked tasks). Finally, **hard-stop rules** force the RAG to Red
+regardless of the weighted score — past the end date and incomplete, ≥ 110 %
+of the hours budget consumed, or ≥ 5 overdue tasks.
 
 **Governance** — a checklist over the board & time data (charter documented,
 dates set, hours budget, manager, resources, Timorc code linked, tasks created,
