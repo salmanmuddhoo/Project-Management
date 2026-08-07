@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { HOURS_PER_DAY } from "@/lib/config";
 import { ragOf } from "@/lib/metrics/healthScore";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { cn, formatCost, formatPct } from "@/lib/utils";
+import { cn, formatCost, formatDate, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
 import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./widgets";
@@ -34,7 +34,8 @@ export function OverviewPage() {
         <div>
           <h1 className="text-xl font-semibold">{project.charter.projectName}</h1>
           <p className="text-sm text-muted-foreground">
-            {project.charter.projectCode || "—"} · PM: {project.charter.manager || "—"} · consolidated in memory, nothing stored
+            {project.charter.projectCode || "—"} · PM: {project.charter.manager || "—"} ·{" "}
+            {formatDate(project.charter.startDate)} → {formatDate(project.charter.endDate)}
           </p>
         </div>
         <RagBadge rag={health.rag} score={health.score} />
