@@ -63,6 +63,9 @@ export formats) and run them through the same pipeline as real files.
 
 ## Documentation
 
+- [`docs/METRICS.md`](docs/METRICS.md) — **every calculated metric explained**
+  (progress, EVM, health score & RAG, forecast, governance) with the exact
+  formulas, thresholds, and the file/constant to change to tune each one.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, data flow,
   folder structure, calculation & health models, wireframes.
 - [`docs/EXCEL_TEMPLATE.md`](docs/EXCEL_TEMPLATE.md) — the standard workbook
