@@ -37,18 +37,14 @@ export function ProjectDetailsPage() {
     ["Département", c.department || "—"],
     ["Communication", c.communication || "—"],
     ["Timorc code(s)", project.timorcCodes.map((t) => t.code).join(", ") || "—"],
-    ["Start date", formatDate(c.startDate)],
-    ["End date", formatDate(c.endDate)],
+    ["Start date (prévisionnelle)", formatDate(c.plannedStartDate)],
+    ["Start date (réelle)", formatDate(c.startDate)],
+    ["Écart date de début", formatDateVariance(c.plannedStartDate, c.startDate)],
+    ["End date (prévisionnelle)", formatDate(c.plannedEndDate)],
+    ["End date (réelle)", formatDate(c.endDate)],
+    ["Écart date de fin", formatDateVariance(c.plannedEndDate, c.endDate)],
     ["Budget", budget],
     ["Source file", project.meta.sourceFileName],
-  ];
-
-  const hasPlannedDates = c.plannedStartDate != null || c.plannedEndDate != null;
-  const plannedFacts: Array<[string, string]> = [
-    ["Start Date", formatDate(c.plannedStartDate)],
-    ["End Date", formatDate(c.plannedEndDate)],
-    ["Écart date de début", formatDateVariance(c.plannedStartDate, c.startDate)],
-    ["Écart date de fin", formatDateVariance(c.plannedEndDate, c.endDate)],
   ];
 
   return (
@@ -71,22 +67,6 @@ export function ProjectDetailsPage() {
           </dl>
         </CardContent>
       </Card>
-
-      {hasPlannedDates && (
-        <Card>
-          <CardHeader><CardTitle>Date Prévisionnelle</CardTitle></CardHeader>
-          <CardContent>
-            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              {plannedFacts.map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-4 border-b pb-1.5">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="truncate text-right font-medium">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardContent>
-        </Card>
-      )}
 
       {c.sections.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
