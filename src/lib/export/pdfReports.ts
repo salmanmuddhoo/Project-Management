@@ -493,6 +493,10 @@ function drawDetailTables(
 
   let cursorY = 92;
   for (const table of report.build(snapshots)) {
+    // The executive cover already lists every task in the colour-coded
+    // "Task & Issue Status" table, so skip the duplicate detailed "Tasks" table
+    // here (it is still emitted in the Excel export, which has no cover).
+    if (table.title === "Tasks") continue;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...INK);
