@@ -8,7 +8,7 @@
 
 import { computePortfolioMetrics, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
+import { daysBetween, formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
 
 export interface ReportTable {
   title: string;
@@ -25,6 +25,14 @@ export interface ReportDefinition {
 
 const hrs = (v: number | null | undefined) => (v == null ? "—" : `${Math.round(v)}h`);
 const idx = (v: number | null | undefined) => (v == null ? "—" : v.toFixed(2));
+
+/** "+N j de retard" / "N j d'avance" / "À temps", comparing actual to planned. */
+const dateVariance = (planned: Date | null, actual: Date | null): string => {
+  if (!planned || !actual) return "—";
+  const diff = daysBetween(planned, actual);
+  if (diff === 0) return "À temps";
+  return diff > 0 ? `+${diff} j de retard` : `${Math.abs(diff)} j d'avance`;
+};
 
 // ---------------------------------------------------------------------------
 // Section builders (each returns the tables for one section)
@@ -45,9 +53,15 @@ function projectDetailsTables(s: ProjectSnapshot): ReportTable[] {
         ["Project", c.projectName],
         ["Code", c.projectCode || "—"],
         ["Project manager", c.manager || "—"],
+        ["Département", c.department || "—"],
+        ["Communication", c.communication || "—"],
         ["Timorc code(s)", s.project.timorcCodes.map((t) => t.code).join(", ") || "—"],
-        ["Start date", formatDate(c.startDate)],
-        ["End date", formatDate(c.endDate)],
+        ["Start date (prévisionnelle)", formatDate(c.plannedStartDate)],
+        ["Start date (réelle)", formatDate(c.startDate)],
+        ["Écart date de début", dateVariance(c.plannedStartDate, c.startDate)],
+        ["End date (prévisionnelle)", formatDate(c.plannedEndDate)],
+        ["End date (réelle)", formatDate(c.endDate)],
+        ["Écart date de fin", dateVariance(c.plannedEndDate, c.endDate)],
         ["Budget", budget],
         ["Progress", formatPct(s.metrics.overallProgressPct)],
         ["Health", `${s.health.score} (${s.health.rag})`],
@@ -180,7 +194,11 @@ function resourcesTable(s: ProjectSnapshot): ReportTable {
   return {
     title: "Resources",
     headers: ["Name", "Role", "Hours logged"],
-    rows: s.project.resources.map((r) => [r.name, r.role || "—", hrs(hoursByName.get(nameKey(r.name)) ?? 0)]),
+    rows: s.project.resources.map((r) => [
+      r.external ? `${r.name} (Externe)` : r.name,
+      r.role || "—",
+      hrs(hoursByName.get(nameKey(r.name)) ?? 0),
+    ]),
   };
 }
 
@@ -199,9 +217,9 @@ function governanceTable(s: ProjectSnapshot): ReportTable {
 export const REPORTS: ReportDefinition[] = [
   {
     key: "project",
-    title: "Project Report",
+    title: "Executive Project Report",
     description:
-      "The complete project report — details and charter, status, time & budget, EVM, tasks, resources and governance in one file.",
+      "An executive status overview — project snapshot, task status and priority, budget performance and key highlights — followed by the full details: charter, status, time & budget, EVM, tasks, resources and governance.",
     build: (snapshots) => {
       const s = snapshots[0];
       if (!s) return [];
