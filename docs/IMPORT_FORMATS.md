@@ -24,12 +24,18 @@ labeled blocks (each label on its own line, French or English, accent-tolerant):
 - **Nom du Projet** — the project name.
 - **Taches Timorc** — the Timorc code(s) that match the time export (e.g.
   `Mauritius9 - 100.003`).
+- **Date Prévisionnelle** — the planned/target schedule, as `Start Date:
+  dd/mm/yyyy` and `End Date: dd/mm/yyyy`. Compared against the card's actual
+  Start date / Due date to surface schedule slippage on the Project Details tab.
+- **Départment** — the owning department/team (e.g. `Quality Engineering`).
 - **Objectif** / **Pourquoi nous le faisons** / **Critère de succès** /
   **Livrable Clès** — narrative sections shown on the Project Details tab.
 - **Resources** — the team, one `Role: Name` per line
   (e.g. `Project Manager: Salman Muddhoo`).
 - **Budget** — cost and/or hours, e.g. `Cost: Rs 1,200,000` and `Hours: 50`.
   A project may be budgeted in hours only, cost only, or both.
+- **Communication** — the reporting cadence with stakeholders, `Weekly` or
+  `Monthly`.
 
 Older exports with separate **Taches Timorc** and **Resources** cards, and an
 hours label like `50 hrs`, are still supported as a fallback.

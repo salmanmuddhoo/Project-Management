@@ -8,8 +8,16 @@ import { FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCost, formatDate } from "@/lib/utils";
+import { daysBetween, formatCost, formatDate } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
+
+/** "+N days late" / "N days early" / "on time", comparing an actual date to its planned date. */
+function formatDateVariance(planned: Date | null, actual: Date | null): string {
+  if (!planned || !actual) return "—";
+  const diff = daysBetween(planned, actual);
+  if (diff === 0) return "À temps";
+  return diff > 0 ? `+${diff} j de retard` : `${Math.abs(diff)} j d'avance`;
+}
 
 export function ProjectDetailsPage() {
   const snapshot = useActiveSnapshot();
@@ -26,12 +34,20 @@ export function ProjectDetailsPage() {
     ["Project", c.projectName],
     ["Code", c.projectCode || "—"],
     ["Project manager", c.manager || "—"],
+    ["Département", c.department || "—"],
+    ["Communication", c.communication || "—"],
     ["Timorc code(s)", project.timorcCodes.map((t) => t.code).join(", ") || "—"],
-    ["Start date", formatDate(c.startDate)],
-    ["End date", formatDate(c.endDate)],
+    ["Start date (réelle)", formatDate(c.startDate)],
+    ["End date (réelle)", formatDate(c.endDate)],
+    ["Start date (prévisionnelle)", formatDate(c.plannedStartDate)],
+    ["End date (prévisionnelle)", formatDate(c.plannedEndDate)],
     ["Budget", budget],
     ["Source file", project.meta.sourceFileName],
   ];
+
+  const hasPlannedDates = c.plannedStartDate != null || c.plannedEndDate != null;
+  const startVariance = formatDateVariance(c.plannedStartDate, c.startDate);
+  const endVariance = formatDateVariance(c.plannedEndDate, c.endDate);
 
   return (
     <div className="space-y-5">
@@ -53,6 +69,24 @@ export function ProjectDetailsPage() {
           </dl>
         </CardContent>
       </Card>
+
+      {hasPlannedDates && (
+        <Card>
+          <CardHeader><CardTitle>Décalage — Prévisionnelle vs Réelle</CardTitle></CardHeader>
+          <CardContent>
+            <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+              <div className="flex justify-between gap-4 border-b pb-1.5">
+                <dt className="text-muted-foreground">Écart date de début</dt>
+                <dd className="truncate text-right font-medium">{startVariance}</dd>
+              </div>
+              <div className="flex justify-between gap-4 border-b pb-1.5">
+                <dt className="text-muted-foreground">Écart date de fin</dt>
+                <dd className="truncate text-right font-medium">{endVariance}</dd>
+              </div>
+            </dl>
+          </CardContent>
+        </Card>
+      )}
 
       {c.sections.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
