@@ -46,7 +46,7 @@ export function OverviewPage() {
               {project.charter.projectCode || "—"} · PM: {project.charter.manager || "—"} ·{" "}
               {formatDate(project.charter.startDate)} → {formatDate(project.charter.endDate)}
             </p>
-            {isStartDateLate(project.charter.plannedStartDate, project.charter.startDate) && (
+            {project.charter.plannedStartDate && project.charter.startDate && isStartDateLate(project.charter.plannedStartDate, project.charter.startDate) && (
               <Badge className="bg-red-600 text-white">Start date {Math.round(daysBetween(project.charter.plannedStartDate, project.charter.startDate))} days late</Badge>
             )}
           </div>
