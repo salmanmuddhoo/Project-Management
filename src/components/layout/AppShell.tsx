@@ -23,8 +23,8 @@ import { usePortfolioStore } from "@/store/portfolioStore";
 import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
-  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/details", label: "Project Details", icon: ClipboardList },
+  { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/resources", label: "Resources", icon: Users },
   { to: "/kanban", label: "Kanban", icon: ListTodo },
   { to: "/time", label: "Time", icon: Clock },

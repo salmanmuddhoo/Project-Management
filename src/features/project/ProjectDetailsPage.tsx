@@ -19,6 +19,13 @@ function formatDateVariance(planned: Date | null, actual: Date | null): string {
   return diff > 0 ? `+${diff} j de retard` : `${Math.abs(diff)} j d'avance`;
 }
 
+/** Check if start date is more than 1 week late. */
+function isStartDateLate(planned: Date | null, actual: Date | null): boolean {
+  if (!planned || !actual) return false;
+  const diff = daysBetween(planned, actual);
+  return diff > 7;
+}
+
 export function ProjectDetailsPage() {
   const snapshot = useActiveSnapshot();
   if (!snapshot) return <EmptyState />;
@@ -51,19 +58,21 @@ export function ProjectDetailsPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-semibold">Project details</h1>
-        <p className="text-sm text-muted-foreground">The project charter, from the Planner board's “Project Charter” card.</p>
       </div>
 
       <Card>
         <CardHeader><CardTitle>Charter</CardTitle></CardHeader>
         <CardContent>
           <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-            {facts.map(([label, value]) => (
-              <div key={label} className="flex justify-between gap-4 border-b pb-1.5">
-                <dt className="text-muted-foreground">{label}</dt>
-                <dd className="truncate text-right font-medium">{value}</dd>
-              </div>
-            ))}
+            {facts.map(([label, value]) => {
+              const isLate = label === "Écart date de début" && isStartDateLate(c.plannedStartDate, c.startDate);
+              return (
+                <div key={label} className="flex justify-between gap-4 border-b pb-1.5">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className={`truncate text-right font-medium ${isLate ? "text-red-600" : ""}`}>{value}</dd>
+                </div>
+              );
+            })}
           </dl>
         </CardContent>
       </Card>
