@@ -37,17 +37,19 @@ export function ProjectDetailsPage() {
     ["Département", c.department || "—"],
     ["Communication", c.communication || "—"],
     ["Timorc code(s)", project.timorcCodes.map((t) => t.code).join(", ") || "—"],
-    ["Start date (réelle)", formatDate(c.startDate)],
-    ["End date (réelle)", formatDate(c.endDate)],
-    ["Start date (prévisionnelle)", formatDate(c.plannedStartDate)],
-    ["End date (prévisionnelle)", formatDate(c.plannedEndDate)],
+    ["Start date", formatDate(c.startDate)],
+    ["End date", formatDate(c.endDate)],
     ["Budget", budget],
     ["Source file", project.meta.sourceFileName],
   ];
 
   const hasPlannedDates = c.plannedStartDate != null || c.plannedEndDate != null;
-  const startVariance = formatDateVariance(c.plannedStartDate, c.startDate);
-  const endVariance = formatDateVariance(c.plannedEndDate, c.endDate);
+  const plannedFacts: Array<[string, string]> = [
+    ["Start Date", formatDate(c.plannedStartDate)],
+    ["End Date", formatDate(c.plannedEndDate)],
+    ["Écart date de début", formatDateVariance(c.plannedStartDate, c.startDate)],
+    ["Écart date de fin", formatDateVariance(c.plannedEndDate, c.endDate)],
+  ];
 
   return (
     <div className="space-y-5">
@@ -72,17 +74,15 @@ export function ProjectDetailsPage() {
 
       {hasPlannedDates && (
         <Card>
-          <CardHeader><CardTitle>Décalage — Prévisionnelle vs Réelle</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Date Prévisionnelle</CardTitle></CardHeader>
           <CardContent>
             <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <div className="flex justify-between gap-4 border-b pb-1.5">
-                <dt className="text-muted-foreground">Écart date de début</dt>
-                <dd className="truncate text-right font-medium">{startVariance}</dd>
-              </div>
-              <div className="flex justify-between gap-4 border-b pb-1.5">
-                <dt className="text-muted-foreground">Écart date de fin</dt>
-                <dd className="truncate text-right font-medium">{endVariance}</dd>
-              </div>
+              {plannedFacts.map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4 border-b pb-1.5">
+                  <dt className="text-muted-foreground">{label}</dt>
+                  <dd className="truncate text-right font-medium">{value}</dd>
+                </div>
+              ))}
             </dl>
           </CardContent>
         </Card>
