@@ -12,11 +12,18 @@ import { Progress } from "@/components/ui/progress";
 import { HOURS_PER_DAY } from "@/lib/config";
 import { ragOf } from "@/lib/metrics/healthScore";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
-import { cn, formatCost, formatDate, formatPct } from "@/lib/utils";
+import { cn, daysBetween, formatCost, formatDate, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
 import { ForecastCard } from "./ForecastCard";
 import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./widgets";
+
+/** Check if start date is more than 1 week late. */
+function isStartDateLate(planned: Date | null, actual: Date | null): boolean {
+  if (!planned || !actual) return false;
+  const diff = daysBetween(planned, actual);
+  return diff > 7;
+}
 
 export function OverviewPage() {
   const snapshot = useActiveSnapshot();
@@ -34,10 +41,15 @@ export function OverviewPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{project.charter.projectName}</h1>
-          <p className="text-sm text-muted-foreground">
-            {project.charter.projectCode || "—"} · PM: {project.charter.manager || "—"} ·{" "}
-            {formatDate(project.charter.startDate)} → {formatDate(project.charter.endDate)}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground">
+              {project.charter.projectCode || "—"} · PM: {project.charter.manager || "—"} ·{" "}
+              {formatDate(project.charter.startDate)} → {formatDate(project.charter.endDate)}
+            </p>
+            {isStartDateLate(project.charter.plannedStartDate, project.charter.startDate) && (
+              <Badge className="bg-red-600 text-white">Start date {Math.round(daysBetween(project.charter.plannedStartDate, project.charter.startDate))} days late</Badge>
+            )}
+          </div>
         </div>
         <RagBadge rag={health.rag} score={health.score} />
       </div>
