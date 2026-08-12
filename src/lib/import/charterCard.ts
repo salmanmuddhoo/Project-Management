@@ -6,9 +6,12 @@
  *   Environment RECLM
  *   Taches Timorc
  *   Mauritius9 - 100.003
+ *   Date Prévisionnelle (Start Date: dd/mm/yyyy / End Date: dd/mm/yyyy)
+ *   Départment         (single line, e.g. "Quality Engineering")
  *   Objectif / Pourquoi nous le faisons / Critère de succès / Livrable Clès
  *   Resources          (one "Role: Name" per line)
  *   Budget             (Cost: Rs 1,200,000 / Hours: 50)
+ *   Communication      (single line, "Weekly" or "Monthly")
  *
  * Matching is accent- and case-insensitive and accepts English equivalents.
  * Blocks the app doesn't recognise stay untouched (attached to the current
@@ -25,11 +28,21 @@ export interface ParsedCharterCard {
   budgetHours: number | null;
   budgetCost: number | null;
   currency: string;
+  /** Planned/target start date ("Date Prévisionnelle" block). */
+  plannedStartDate: Date | null;
+  /** Planned/target end date ("Date Prévisionnelle" block). */
+  plannedEndDate: Date | null;
+  /** Owning department/team (e.g. "Quality Engineering"). */
+  department: string;
+  /** Communication cadence with the stakeholders ("Weekly" or "Monthly"). */
+  communication: string;
   /** Narrative sections (Objectif, Pourquoi…, Critère de succès, Livrable). */
   sections: CharterSection[];
 }
 
-type Kind = "name" | "timorc" | "objective" | "why" | "success" | "deliverable" | "resources" | "budget";
+type Kind =
+  | "name" | "timorc" | "objective" | "why" | "success" | "deliverable" | "resources" | "budget"
+  | "plannedDates" | "department" | "communication";
 
 const stripDiacritics = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 const norm = (s: string) => stripDiacritics(s.trim().toLowerCase()).replace(/\s+/g, " ").replace(/[:：]\s*$/, "");
@@ -43,6 +56,9 @@ const LABELS: Array<{ kind: Kind; title: string; match: string[] }> = [
   { kind: "deliverable", title: "Livrable clé", match: ["livrable cles", "livrable cle", "livrables cles", "livrables", "livrable", "key deliverable", "key deliverables", "deliverables"] },
   { kind: "resources", title: "Resources", match: ["resources", "ressources", "equipe", "team"] },
   { kind: "budget", title: "Budget", match: ["budget", "budgets"] },
+  { kind: "plannedDates", title: "Date Prévisionnelle", match: ["date previsionnelle", "dates previsionnelles", "date prevue", "planned date", "planned dates"] },
+  { kind: "department", title: "Départment", match: ["departement", "department", "departments", "service"] },
+  { kind: "communication", title: "Communication", match: ["communication", "communications", "frequence de communication", "communication frequency"] },
 ];
 
 /** The narrative sections shown on the Project Details tab, in display order. */
@@ -77,6 +93,29 @@ function parseHours(text: string): number | null {
   const unit = (m[2] ?? "").toLowerCase();
   const isDay = /^(d|day|days|j|jour|jours)$/.test(unit);
   return isDay ? n * HOURS_PER_DAY : n;
+}
+
+/** Parse a "dd/mm/yyyy" (or "d/m/yy") date, as written by hand in the notes. */
+function parseDmyDate(text: string): Date | null {
+  const m = /(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})/.exec(text.trim());
+  if (!m) return null;
+  const year = +m[3] < 100 ? 2000 + +m[3] : +m[3];
+  const d = new Date(Date.UTC(year, +m[2] - 1, +m[1]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** "Start Date: 14/12/2026" / "End Date: 14/12/2027" lines in the "Date Prévisionnelle" block. */
+function parsePlannedDates(lines: string[]): { start: Date | null; end: Date | null } {
+  let start: Date | null = null;
+  let end: Date | null = null;
+  for (const line of lines) {
+    const idx = line.indexOf(":");
+    const key = norm(idx > 0 ? line.slice(0, idx) : line);
+    const value = idx > 0 ? line.slice(idx + 1) : line;
+    if (/start|debut|début/.test(key)) start = parseDmyDate(value) ?? start;
+    else if (/end|fin/.test(key)) end = parseDmyDate(value) ?? end;
+  }
+  return { start, end };
 }
 
 function parseResourceLine(line: string): Resource | null {
@@ -126,11 +165,18 @@ export function parseCharterCard(notes: string): ParsedCharterCard {
     }
   }
 
+  const { start: plannedStartDate, end: plannedEndDate } = parsePlannedDates(block("plannedDates"));
+  const department = block("department").join(" ").trim();
+  const communication = block("communication").join(" ").trim();
+
   const sections: CharterSection[] = NARRATIVE_ORDER
     .map((s) => ({ title: s.title, body: block(s.kind).join("\n").trim() }))
     .filter((s) => s.body.length > 0);
 
-  return { projectName, timorcCodes, resources, budgetHours, budgetCost, currency, sections };
+  return {
+    projectName, timorcCodes, resources, budgetHours, budgetCost, currency,
+    plannedStartDate, plannedEndDate, department, communication, sections,
+  };
 }
 
 /** True when the notes look like the new labeled charter card. */

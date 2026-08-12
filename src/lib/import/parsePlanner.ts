@@ -206,8 +206,9 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
 
   let charter: ProjectCharter = {
     projectName: planName, projectCode: "", planId,
-    startDate: null, endDate: null, budgetHours: null, budgetCost: null, currency: "",
-    manager: "", sections: [], notes: "",
+    startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
+    budgetHours: null, budgetCost: null, currency: "",
+    manager: "", department: "", communication: "", sections: [], notes: "",
   };
   let resources: Resource[] = [];
   let timorcCodes: TimorcCode[] = [];
@@ -234,7 +235,9 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
             ...charter,
             projectName: parsed.projectName || charter.projectName,
             startDate: start, endDate: end,
+            plannedStartDate: parsed.plannedStartDate, plannedEndDate: parsed.plannedEndDate,
             budgetHours: parsed.budgetHours, budgetCost: parsed.budgetCost, currency: parsed.currency,
+            department: parsed.department, communication: parsed.communication,
             sections: parsed.sections, notes,
           };
           if (parsed.timorcCodes.length) timorcCodes = toTimorcCodes(parsed.timorcCodes);
@@ -298,7 +301,12 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
 function emptyProject(fileName: string, planId: string, planName: string): Project {
   return {
     id: hashId(`${planId}|${planName}|${fileName}`),
-    charter: { projectName: planName, projectCode: "", planId, startDate: null, endDate: null, budgetHours: null, budgetCost: null, currency: "", manager: "", sections: [], notes: "" },
+    charter: {
+      projectName: planName, projectCode: "", planId,
+      startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
+      budgetHours: null, budgetCost: null, currency: "",
+      manager: "", department: "", communication: "", sections: [], notes: "",
+    },
     resources: [], timorcCodes: [], buckets: [], tasks: [],
     meta: { sourceFileName: fileName, importedAt: new Date(), warningCount: 0 },
   };

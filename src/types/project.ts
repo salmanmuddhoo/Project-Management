@@ -31,6 +31,10 @@ export interface ProjectCharter {
   planId: string;
   startDate: Date | null;
   endDate: Date | null;
+  /** Planned/target start date ("Date Prévisionnelle" block), to compare against the actual start date. */
+  plannedStartDate: Date | null;
+  /** Planned/target end date ("Date Prévisionnelle" block), to compare against the actual end date. */
+  plannedEndDate: Date | null;
   /** Hours budget (null when the project is budgeted in cost only). */
   budgetHours: number | null;
   /** Cost budget (null when budgeted in hours only). */
@@ -38,6 +42,10 @@ export interface ProjectCharter {
   /** Currency label for the cost budget (e.g. "Rs"). */
   currency: string;
   manager: string;
+  /** Owning department/team (e.g. "Quality Engineering"). */
+  department: string;
+  /** Communication cadence with the stakeholders ("Weekly" or "Monthly"). */
+  communication: string;
   /** Named narrative sections (Objectif, Pourquoi…, Critère de succès, Livrable). */
   sections: CharterSection[];
   /** Raw charter card text. */
