@@ -46,8 +46,9 @@ export function ReportsPage() {
         <div>
           <h1 className="text-xl font-semibold">Report</h1>
           <p className="text-sm text-muted-foreground">
-            One combined project report — details and charter, status, time &amp; budget, EVM, tasks,
-            resources and governance in a single file. Generated in your browser; nothing leaves it.
+            An executive project report — a one-page status dashboard (snapshot, task status &amp;
+            priority, budget and highlights) followed by the full details: charter, status, time &amp;
+            budget, EVM, tasks, resources and governance. Generated in your browser; nothing leaves it.
           </p>
         </div>
         {/* Discreet link to the internal EVM analysis (not in the sidebar). */}
