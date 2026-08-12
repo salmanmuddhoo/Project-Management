@@ -63,7 +63,7 @@ export function ResourcesPage() {
             )}
             {project.resources.map((r, i) => (
               <TableRow key={i}>
-                <TableCell className="font-medium">{r.name}</TableCell>
+                <TableCell className="font-medium">{r.name}{r.external ? " (Externe)" : ""}</TableCell>
                 <TableCell><Badge variant="muted">{r.role || "—"}</Badge></TableCell>
                 <TableCell className="tnum text-right">{Math.round(lookupHours(r.name))}h</TableCell>
               </TableRow>

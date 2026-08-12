@@ -122,8 +122,19 @@ function parseResourceLine(line: string): Resource | null {
   const trimmed = line.trim();
   if (!trimmed) return null;
   const idx = trimmed.indexOf(":");
-  if (idx > 0) return { role: trimmed.slice(0, idx).trim(), name: trimmed.slice(idx + 1).trim() };
-  return { role: "", name: trimmed };
+  let role = "";
+  let fullName = trimmed;
+  if (idx > 0) {
+    role = trimmed.slice(0, idx).trim();
+    fullName = trimmed.slice(idx + 1).trim();
+  }
+
+  // Extract "(Externe)" or "(External)" suffix from name
+  const externalMatch = fullName.match(/\s*\((?:externe|external)\)\s*$/i);
+  const external = !!externalMatch;
+  const name = externalMatch ? fullName.slice(0, externalMatch.index).trim() : fullName;
+
+  return { role, name, external: external || undefined };
 }
 
 export function parseCharterCard(notes: string): ParsedCharterCard {

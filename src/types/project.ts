@@ -56,6 +56,8 @@ export interface ProjectCharter {
 export interface Resource {
   role: string;
   name: string;
+  /** Whether this resource is external to the company. Shown as "(Externe)" in UI. */
+  external?: boolean;
 }
 
 /** Project Details › Taches Timorc card (one code per line). */
