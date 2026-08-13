@@ -6,7 +6,7 @@
  * governance) — one workbook / one document that tells the whole story.
  */
 
-import { computePortfolioMetrics, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
+import { type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { daysBetween, formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
 
