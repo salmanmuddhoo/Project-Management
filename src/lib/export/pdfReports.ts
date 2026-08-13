@@ -54,7 +54,7 @@ function classifyTask(t: Task): { label: string; key: StatusKey } {
   if (t.overdue) return { label: "Late", key: "late" };
   if (HOLD_BUCKETS.includes(b)) return { label: "On Hold", key: "hold" };
   if (WIP_BUCKETS.includes(b) || (t.progressPct ?? 0) > 0 || status.startsWith("en cours"))
-    return { label: "WIP", key: "wip" };
+    return { label: "In Progress", key: "wip" };
   return { label: "Not Started", key: "todo" };
 }
 
@@ -406,8 +406,38 @@ function drawExecutiveCover(
     }
   }
 
+  // ---- Project Charter Details (key dates) ---------------------------------
+  const charterSectionY = row3Y + row3H + 14;
+  {
+    const charterW = usableWidth / 2 - 7.5;
+    const charterLeftX = margin;
+    const charterRightX = margin + charterW + 15;
+    
+    // Left: Planned dates
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...NAVY);
+    doc.text("Planned Schedule", charterLeftX, charterSectionY + 2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.6);
+    doc.setTextColor(...INK);
+    doc.text(`Start: ${formatDate(c.plannedStartDate) || "—"}`, charterLeftX, charterSectionY + 16);
+    doc.text(`End: ${formatDate(c.plannedEndDate) || "—"}`, charterLeftX, charterSectionY + 28);
+
+    // Right: Actual dates
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...NAVY);
+    doc.text("Actual Schedule", charterRightX, charterSectionY + 2);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.6);
+    doc.setTextColor(...INK);
+    doc.text(`Start: ${formatDate(c.actualStartDate) || "—"}`, charterRightX, charterSectionY + 16);
+    doc.text(`End: ${formatDate(c.actualEndDate) || "—"}`, charterRightX, charterSectionY + 28);
+  }
+
   // ---- Task / issue status table -------------------------------------------
-  const tableTitleY = row3Y + row3H + 22;
+  const tableTitleY = charterSectionY + 42;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(...NAVY);
@@ -424,7 +454,6 @@ function drawExecutiveCover(
         halign: "center",
       },
     };
-    const comments = (t.notes || "").replace(/\s+/g, " ").trim() || "—";
     return [
       i + 1,
       t.title,
@@ -432,17 +461,16 @@ function drawExecutiveCover(
       formatDate(t.startDate),
       formatDate(t.dueDate),
       statusCell,
-      comments,
     ];
   });
 
   autoTable(doc, {
     startY: tableTitleY + 8,
-    head: [["#", "Task / Issue", "Owner", "Start", "Due", "Status", "Comments / Updates"]],
+    head: [["#", "Task / Issue", "Owner", "Start", "Due", "Status"]],
     body:
       body.length > 0
         ? body
-        : [[{ content: "No tasks on the board.", colSpan: 7, styles: { halign: "center", textColor: MUTED } }]],
+        : [[{ content: "No tasks on the board.", colSpan: 6, styles: { halign: "center", textColor: MUTED } }]],
     styles: {
       fontSize: 8.5,
       cellPadding: { top: 4, bottom: 4, left: 5, right: 5 },
@@ -458,7 +486,7 @@ function drawExecutiveCover(
       2: { cellWidth: 62 },
       3: { cellWidth: 50 },
       4: { cellWidth: 50 },
-      5: { cellWidth: 58 },
+      5: { cellWidth: 70, halign: "center" },
     },
     margin: { left: margin, right: margin },
   });
@@ -554,5 +582,6 @@ export function exportReportToPdf(report: ReportDefinition, snapshots: ProjectSn
     doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin - 50, pageHeight - 20);
   }
 
-  doc.save(`${report.title.replace(/\s+/g, "-")}.pdf`);
+  const fileName = s.project.charter.projectName || report.title;
+  doc.save(`${fileName.replace(/\s+/g, "-")}.pdf`);
 }

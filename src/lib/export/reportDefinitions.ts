@@ -239,16 +239,6 @@ export const REPORTS: ReportDefinition[] = [
           rows: generateRecommendations(snapshots).map((r) => [r.severity.toUpperCase(), r.category, r.message]),
         },
         governanceTable(s),
-        {
-          title: "Summary",
-          headers: ["KPI", "Value"],
-          rows: [
-            ["Health", `${p.portfolioHealthScore} (${p.portfolioRag})`],
-            ["Progress", formatPct(s.metrics.overallProgressPct)],
-            ["Hours budget / consumed", `${hrs(p.totalBudgetHours)} / ${hrs(p.consumedHours)}`],
-            ["Tasks done", `${p.tasksCompleted}/${p.tasksTotal}`],
-          ],
-        },
       ];
     },
   },
