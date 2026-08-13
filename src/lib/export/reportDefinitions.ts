@@ -223,7 +223,6 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => {
       const s = snapshots[0];
       if (!s) return [];
-      const p = computePortfolioMetrics(snapshots);
       const forecast = forecastTable(s);
       return [
         ...projectDetailsTables(s),

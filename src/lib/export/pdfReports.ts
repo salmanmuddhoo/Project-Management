@@ -432,8 +432,8 @@ function drawExecutiveCover(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.6);
     doc.setTextColor(...INK);
-    doc.text(`Start: ${formatDate(c.actualStartDate) || "—"}`, charterRightX, charterSectionY + 16);
-    doc.text(`End: ${formatDate(c.actualEndDate) || "—"}`, charterRightX, charterSectionY + 28);
+    doc.text(`Start: ${formatDate(c.startDate) || "—"}`, charterRightX, charterSectionY + 16);
+    doc.text(`End: ${formatDate(c.endDate) || "—"}`, charterRightX, charterSectionY + 28);
   }
 
   // ---- Task / issue status table -------------------------------------------
