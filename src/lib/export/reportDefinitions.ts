@@ -6,7 +6,7 @@
  * governance) — one workbook / one document that tells the whole story.
  */
 
-import { computePortfolioMetrics, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
+import { type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { daysBetween, formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
 
@@ -223,7 +223,6 @@ export const REPORTS: ReportDefinition[] = [
     build: (snapshots) => {
       const s = snapshots[0];
       if (!s) return [];
-      const p = computePortfolioMetrics(snapshots);
       const forecast = forecastTable(s);
       return [
         ...projectDetailsTables(s),
@@ -239,16 +238,6 @@ export const REPORTS: ReportDefinition[] = [
           rows: generateRecommendations(snapshots).map((r) => [r.severity.toUpperCase(), r.category, r.message]),
         },
         governanceTable(s),
-        {
-          title: "Summary",
-          headers: ["KPI", "Value"],
-          rows: [
-            ["Health", `${p.portfolioHealthScore} (${p.portfolioRag})`],
-            ["Progress", formatPct(s.metrics.overallProgressPct)],
-            ["Hours budget / consumed", `${hrs(p.totalBudgetHours)} / ${hrs(p.consumedHours)}`],
-            ["Tasks done", `${p.tasksCompleted}/${p.tasksTotal}`],
-          ],
-        },
       ];
     },
   },
