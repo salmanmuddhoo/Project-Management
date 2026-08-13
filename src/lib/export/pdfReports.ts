@@ -13,7 +13,7 @@ import autoTable, { type RowInput, type Styles } from "jspdf-autotable";
 
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import type { Task } from "@/types/project";
-import { formatCost, formatDate, formatPct } from "@/lib/utils";
+import { daysBetween, formatCost, formatDate, formatPct } from "@/lib/utils";
 import type { ReportDefinition } from "./reportDefinitions";
 
 type RGB = [number, number, number];
@@ -191,6 +191,14 @@ function drawBar(
 // Executive one-page cover
 // ---------------------------------------------------------------------------
 
+/** Schedule slippage between a planned and an actual date, in plain English. */
+function scheduleVariance(planned: Date | null, actual: Date | null): string {
+  if (!planned || !actual) return "—";
+  const diff = daysBetween(planned, actual);
+  if (diff === 0) return "On time";
+  return diff > 0 ? `${diff}d late` : `${Math.abs(diff)}d early`;
+}
+
 function drawExecutiveCover(
   doc: jsPDF,
   report: ReportDefinition,
@@ -238,19 +246,21 @@ function drawExecutiveCover(
   {
     const cy = drawCard(doc, leftX, row1Y, cardW, rowH, "Project Snapshot");
     const rows: Array<[string, string]> = [
-      ["Project Manager", c.manager || "—"],
-      ["Department", c.department || "—"],
       ["Project Name", c.projectName || "—"],
       ["Code", c.projectCode || "—"],
+      ["Project Manager", c.manager || "—"],
+      ["Department", c.department || "—"],
       ["Communication", c.communication || "—"],
-      ["Dated", formatDate(new Date())],
+      ["Timorc Code(s)", s.project.timorcCodes.map((t) => t.code).join(", ") || "—"],
+      ["Health", `${s.health.score} (${s.health.rag})`],
+      ["Source File", s.project.meta.sourceFileName || "—"],
     ];
-    const rowH2 = 17.5;
-    let ry = cy + 6;
+    const rowH2 = 13.5;
+    let ry = cy + 4;
     const labelX = leftX + 10;
-    const valueX = leftX + 118;
-    const valueW = cardW - 118 - 12;
-    doc.setFontSize(8.6);
+    const valueX = leftX + 100;
+    const valueW = cardW - 100 - 12;
+    doc.setFontSize(8.4);
     rows.forEach(([label, value], i) => {
       if (i % 2 === 1) {
         doc.setFillColor(...[245, 247, 249] as RGB);
@@ -258,11 +268,11 @@ function drawExecutiveCover(
       }
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...MUTED);
-      doc.text(label, labelX, ry + 11);
+      doc.text(label, labelX, ry + 9);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...INK);
       const v = doc.splitTextToSize(value, valueW);
-      doc.text(v[0] ?? "—", valueX, ry + 11);
+      doc.text(v[0] ?? "—", valueX, ry + 9);
       ry += rowH2;
     });
   }
@@ -406,44 +416,73 @@ function drawExecutiveCover(
     }
   }
 
-  // ---- Project Charter Details (key dates) ---------------------------------
-  const charterSectionY = row3Y + row3H + 14;
-  {
-    const charterW = usableWidth / 2 - 7.5;
-    const charterLeftX = margin;
-    const charterRightX = margin + charterW + 15;
-    
-    // Left: Planned dates
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...NAVY);
-    doc.text("Planned Schedule", charterLeftX, charterSectionY + 2);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.6);
-    doc.setTextColor(...INK);
-    doc.text(`Start: ${formatDate(c.plannedStartDate) || "—"}`, charterLeftX, charterSectionY + 16);
-    doc.text(`End: ${formatDate(c.plannedEndDate) || "—"}`, charterLeftX, charterSectionY + 28);
+  // ---- Flowing lower section: Schedule, Charter, Task & Issue status --------
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const tableStyles = {
+    fontSize: 8.5,
+    cellPadding: { top: 4, bottom: 4, left: 6, right: 6 },
+    overflow: "linebreak" as const,
+    valign: "middle" as const,
+    lineColor: BORDER,
+    lineWidth: 0.5,
+  };
+  const finalY = () =>
+    (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
-    // Right: Actual dates
+  // Section heading, guarding against an orphaned title at the page bottom.
+  const sectionHeading = (title: string, y: number): number => {
+    let ny = y;
+    if (ny > pageHeight - 96) {
+      doc.addPage();
+      ny = 56;
+    }
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
+    doc.setFontSize(12);
     doc.setTextColor(...NAVY);
-    doc.text("Actual Schedule", charterRightX, charterSectionY + 2);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.6);
-    doc.setTextColor(...INK);
-    doc.text(`Start: ${formatDate(c.startDate) || "—"}`, charterRightX, charterSectionY + 16);
-    doc.text(`End: ${formatDate(c.endDate) || "—"}`, charterRightX, charterSectionY + 28);
+    doc.text(title, margin, ny);
+    return ny;
+  };
+
+  let flowY = row3Y + row3H + 24;
+
+  // ---- Schedule (planned vs actual, with variance) -------------------------
+  flowY = sectionHeading("Schedule", flowY);
+  autoTable(doc, {
+    startY: flowY + 8,
+    head: [["Milestone", "Planned", "Actual", "Variance"]],
+    body: [
+      ["Start", formatDate(c.plannedStartDate), formatDate(c.startDate), scheduleVariance(c.plannedStartDate, c.startDate)],
+      ["End", formatDate(c.plannedEndDate), formatDate(c.endDate), scheduleVariance(c.plannedEndDate, c.endDate)],
+    ],
+    tableWidth: usableWidth,
+    styles: tableStyles,
+    headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
+    alternateRowStyles: { fillColor: [246, 247, 249] },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 120 } },
+    margin: { left: margin, right: margin },
+  });
+  flowY = finalY() + 26;
+
+  // ---- Charter (narrative sections) ----------------------------------------
+  if (c.sections.length > 0) {
+    flowY = sectionHeading("Charter", flowY);
+    autoTable(doc, {
+      startY: flowY + 8,
+      head: [["Section", "Content"]],
+      body: c.sections.map((sec) => [sec.title, sec.body]),
+      tableWidth: usableWidth,
+      styles: tableStyles,
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
+      alternateRowStyles: { fillColor: [246, 247, 249] },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 120 } },
+      margin: { left: margin, right: margin },
+    });
+    flowY = finalY() + 26;
   }
 
-  // ---- Task / issue status table -------------------------------------------
-  const tableTitleY = charterSectionY + 42;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
-  doc.setTextColor(...NAVY);
-  doc.text("Task & Issue Status", margin, tableTitleY);
-
-  const body: RowInput[] = s.project.tasks.map((t, i) => {
+  // ---- Task & Issue status (Task / Issue, Owner, Status) --------------------
+  flowY = sectionHeading("Task & Issue Status", flowY);
+  const body: RowInput[] = s.project.tasks.map((t) => {
     const cls = classifyTask(t);
     const statusCell: { content: string; styles: Partial<Styles> } = {
       content: cls.label,
@@ -454,39 +493,23 @@ function drawExecutiveCover(
         halign: "center",
       },
     };
-    return [
-      i + 1,
-      t.title,
-      t.assignee || "—",
-      formatDate(t.startDate),
-      formatDate(t.dueDate),
-      statusCell,
-    ];
+    return [t.title, t.assignee || "—", statusCell];
   });
 
   autoTable(doc, {
-    startY: tableTitleY + 8,
-    head: [["#", "Task / Issue", "Owner", "Start", "Due", "Status"]],
+    startY: flowY + 8,
+    head: [["Task / Issue", "Owner", "Status"]],
     body:
       body.length > 0
         ? body
-        : [[{ content: "No tasks on the board.", colSpan: 6, styles: { halign: "center", textColor: MUTED } }]],
-    styles: {
-      fontSize: 8.5,
-      cellPadding: { top: 4, bottom: 4, left: 5, right: 5 },
-      overflow: "linebreak",
-      valign: "middle",
-      lineColor: BORDER,
-      lineWidth: 0.5,
-    },
+        : [[{ content: "No tasks on the board.", colSpan: 3, styles: { halign: "center", textColor: MUTED } }]],
+    tableWidth: usableWidth,
+    styles: tableStyles,
     headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
     alternateRowStyles: { fillColor: [246, 247, 249] },
     columnStyles: {
-      0: { cellWidth: 22, halign: "center" },
-      2: { cellWidth: 62 },
-      3: { cellWidth: 50 },
-      4: { cellWidth: 50 },
-      5: { cellWidth: 70, halign: "center" },
+      1: { cellWidth: 110 },
+      2: { cellWidth: 80, halign: "center" },
     },
     margin: { left: margin, right: margin },
   });
@@ -521,10 +544,11 @@ function drawDetailTables(
 
   let cursorY = 92;
   for (const table of report.build(snapshots)) {
-    // The executive cover already lists every task in the colour-coded
-    // "Task & Issue Status" table, so skip the duplicate detailed "Tasks" table
-    // here (it is still emitted in the Excel export, which has no cover).
-    if (table.title === "Tasks") continue;
+    // Skip tables already shown on the executive cover to avoid duplication:
+    // "Project Details" (Project Snapshot card + Schedule), "Charter" (Charter
+    // section) and "Tasks" (colour-coded "Task & Issue Status" table). They are
+    // still emitted in the Excel export, which has no cover.
+    if (table.title === "Tasks" || table.title === "Project Details" || table.title === "Charter") continue;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...INK);
