@@ -209,6 +209,7 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
     startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
     budgetHours: null, budgetCost: null, currency: "",
     manager: "", department: "", communication: "", sections: [], notes: "",
+    risksIssues: "", pmRecommendation: "",
   };
   let resources: Resource[] = [];
   let timorcCodes: TimorcCode[] = [];
@@ -306,6 +307,7 @@ function emptyProject(fileName: string, planId: string, planName: string): Proje
       startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
       budgetHours: null, budgetCost: null, currency: "",
       manager: "", department: "", communication: "", sections: [], notes: "",
+      risksIssues: "", pmRecommendation: "",
     },
     resources: [], timorcCodes: [], buckets: [], tasks: [],
     meta: { sourceFileName: fileName, importedAt: new Date(), warningCount: 0 },

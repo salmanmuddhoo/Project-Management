@@ -46,6 +46,10 @@ export interface ProjectCharter {
   department: string;
   /** Communication cadence with the stakeholders ("Weekly" or "Monthly"). */
   communication: string;
+  /** Risks & issues, filled in the web app (session-only, not from Planner). */
+  risksIssues: string;
+  /** PM decision / recommendation, filled in the web app (session-only, not from Planner). */
+  pmRecommendation: string;
   /** Named narrative sections (Objectif, Pourquoi…, Critère de succès, Livrable). */
   sections: CharterSection[];
   /** Raw charter card text. */
