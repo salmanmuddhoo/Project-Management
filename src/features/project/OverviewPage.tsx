@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { HOURS_PER_DAY } from "@/lib/config";
+import type { LightColor, LifecycleState, TrafficLight } from "@/lib/metrics/dimensionRag";
 import { ragOf } from "@/lib/metrics/healthScore";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { cn, daysBetween, formatCost, formatDate, formatPct } from "@/lib/utils";
@@ -25,10 +26,37 @@ function isStartDateLate(planned: Date | null, actual: Date | null): boolean {
   return diff > 7;
 }
 
+/** Tailwind background for a traffic-light dot. */
+const LIGHT_DOT: Record<LightColor, string> = {
+  green: "bg-green-600",
+  amber: "bg-amber-500",
+  red: "bg-red-600",
+  blue: "bg-blue-600",
+  grey: "bg-muted-foreground/40",
+};
+
+const LIFECYCLE_LABEL: Record<LifecycleState, string> = {
+  "not-started": "Not started",
+  active: "Active",
+  complete: "Complete",
+};
+
+function StatusLightRow({ light }: { light: TrafficLight }) {
+  return (
+    <div className="flex items-start gap-2">
+      <span className={cn("mt-1 h-2.5 w-2.5 shrink-0 rounded-full", LIGHT_DOT[light.color])} />
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{light.label}</p>
+        <p className="text-xs text-muted-foreground">{light.reason}</p>
+      </div>
+    </div>
+  );
+}
+
 export function OverviewPage() {
   const snapshot = useActiveSnapshot();
   if (!snapshot) return <EmptyState />;
-  const { project, metrics, health, evm } = snapshot;
+  const { project, metrics, health, evm, statusLights } = snapshot;
 
   // EVM tiles (mirror the EVM page), shown when a budget is present.
   const primary = evm.units[0];
@@ -53,6 +81,29 @@ export function OverviewPage() {
         </div>
         <RagBadge rag={health.rag} score={health.score} />
       </div>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle>Project status</CardTitle>
+          <Badge
+            className={cn(
+              "text-white",
+              statusLights.overall === "green" && "bg-green-600",
+              statusLights.overall === "amber" && "bg-amber-500",
+              statusLights.overall === "red" && "bg-red-600",
+              statusLights.overall === "blue" && "bg-blue-600",
+              statusLights.overall === "grey" && "bg-muted-foreground/60",
+            )}
+          >
+            {LIFECYCLE_LABEL[statusLights.lifecycle]}
+          </Badge>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <StatusLightRow light={statusLights.schedule} />
+          <StatusLightRow light={statusLights.budget} />
+          <StatusLightRow light={statusLights.deliverables} />
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
         <KpiTile label="Progress" value={`${Math.round(metrics.overallProgressPct)}%`} hint={`${metrics.tasksCompleted}/${metrics.tasksTotal} tasks`} />

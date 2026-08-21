@@ -67,9 +67,9 @@ const BLOCKED_BUCKETS = ["blocked", "bloqué", "bloque", "on hold"];
 const PROGRESS_BUCKETS = ["in progress", "en cours", "doing", "wip"];
 
 const norm = (s: string) => s.trim().toLowerCase();
-const isDoneBucket = (b: string) => DONE_BUCKETS.includes(norm(b));
-const isBlockedBucket = (b: string) => BLOCKED_BUCKETS.includes(norm(b));
-const isProgressBucket = (b: string) => PROGRESS_BUCKETS.includes(norm(b));
+export const isDoneBucket = (b: string) => DONE_BUCKETS.includes(norm(b));
+export const isBlockedBucket = (b: string) => BLOCKED_BUCKETS.includes(norm(b));
+export const isProgressBucket = (b: string) => PROGRESS_BUCKETS.includes(norm(b));
 
 function isTaskDone(t: Task): boolean {
   return (
