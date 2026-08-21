@@ -480,6 +480,26 @@ function drawExecutiveCover(
     flowY = finalY() + 26;
   }
 
+  // ---- Risks, Issues & PM Recommendation (manual inputs) -------------------
+  const pmNotes: Array<[string, string]> = [];
+  if (c.risksIssues.trim()) pmNotes.push(["Risks & Issues", c.risksIssues.trim()]);
+  if (c.pmRecommendation.trim()) pmNotes.push(["PM Decision / Recommendation", c.pmRecommendation.trim()]);
+  if (pmNotes.length > 0) {
+    flowY = sectionHeading("Risks, Issues & PM Recommendation", flowY);
+    autoTable(doc, {
+      startY: flowY + 8,
+      head: [["Section", "Content"]],
+      body: pmNotes,
+      tableWidth: usableWidth,
+      styles: tableStyles,
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: "bold", fontSize: 8.5 },
+      alternateRowStyles: { fillColor: [246, 247, 249] },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 120 } },
+      margin: { left: margin, right: margin },
+    });
+    flowY = finalY() + 26;
+  }
+
   // ---- Task & Issue status (Task / Issue, Owner, Status) --------------------
   flowY = sectionHeading("Task & Issue Status", flowY);
   const body: RowInput[] = s.project.tasks.map((t) => {

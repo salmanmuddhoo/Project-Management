@@ -8,8 +8,9 @@ import { FileText } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { daysBetween, formatCost, formatDate } from "@/lib/utils";
-import { useActiveSnapshot } from "@/store/portfolioStore";
+import { usePortfolioStore, useActiveSnapshot } from "@/store/portfolioStore";
 
 /** "+N days late" / "N days early" / "on time", comparing an actual date to its planned date. */
 function formatDateVariance(planned: Date | null, actual: Date | null): string {
@@ -28,6 +29,10 @@ function isStartDateLate(planned: Date | null, actual: Date | null): boolean {
 
 export function ProjectDetailsPage() {
   const snapshot = useActiveSnapshot();
+  const risksIssues = usePortfolioStore((s) => s.risksIssues);
+  const pmRecommendation = usePortfolioStore((s) => s.pmRecommendation);
+  const setRisksIssues = usePortfolioStore((s) => s.setRisksIssues);
+  const setPmRecommendation = usePortfolioStore((s) => s.setPmRecommendation);
   if (!snapshot) return <EmptyState />;
   const { project } = snapshot;
   const c = project.charter;
@@ -76,6 +81,44 @@ export function ProjectDetailsPage() {
           </dl>
         </CardContent>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="flex flex-col">
+          <CardHeader className="flex-row items-start gap-2 space-y-0">
+            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <CardTitle className="leading-snug">Risques &amp; Problèmes</CardTitle>
+              <p className="text-xs text-muted-foreground">Saisie manuelle (session en cours)</p>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <Textarea
+              value={risksIssues}
+              onChange={(e) => setRisksIssues(e.target.value)}
+              placeholder="Décrivez les risques et problèmes en cours…"
+              className="min-h-[140px]"
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader className="flex-row items-start gap-2 space-y-0">
+            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+            <div>
+              <CardTitle className="leading-snug">Décision ou Recommandation du PM</CardTitle>
+              <p className="text-xs text-muted-foreground">Saisie manuelle (session en cours)</p>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1">
+            <Textarea
+              value={pmRecommendation}
+              onChange={(e) => setPmRecommendation(e.target.value)}
+              placeholder="Décision prise ou recommandation du chef de projet…"
+              className="min-h-[140px]"
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       {c.sections.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
