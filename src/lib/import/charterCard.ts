@@ -12,6 +12,8 @@
  *   Resources          (one "Role: Name" per line)
  *   Budget             (Cost: Rs 1,200,000 / Hours: 50)
  *   Communication      (single line, "Weekly" or "Monthly")
+ *   Risques & Problèmes            (free text, narrative section)
+ *   Décision ou Recommandation du PM (free text, narrative section)
  *
  * Matching is accent- and case-insensitive and accepts English equivalents.
  * Blocks the app doesn't recognise stay untouched (attached to the current
@@ -42,7 +44,7 @@ export interface ParsedCharterCard {
 
 type Kind =
   | "name" | "timorc" | "objective" | "why" | "success" | "deliverable" | "resources" | "budget"
-  | "plannedDates" | "department" | "communication";
+  | "plannedDates" | "department" | "communication" | "risks" | "recommendation";
 
 const stripDiacritics = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 const norm = (s: string) => stripDiacritics(s.trim().toLowerCase()).replace(/\s+/g, " ").replace(/[:：]\s*$/, "");
@@ -59,6 +61,8 @@ const LABELS: Array<{ kind: Kind; title: string; match: string[] }> = [
   { kind: "plannedDates", title: "Date Prévisionnelle", match: ["date previsionnelle", "dates previsionnelles", "date prevue", "planned date", "planned dates"] },
   { kind: "department", title: "Départment", match: ["departement", "department", "departments", "service"] },
   { kind: "communication", title: "Communication", match: ["communication", "communications", "frequence de communication", "communication frequency"] },
+  { kind: "risks", title: "Risques & Problèmes", match: ["risques & problemes", "risques et problemes", "risques and problemes", "risques problemes", "risques", "problemes", "risks & issues", "risks and issues", "risks/issues", "risks issues", "risks", "issues"] },
+  { kind: "recommendation", title: "Décision ou Recommandation du PM", match: ["decision ou recommandation du pm", "decision ou recommendation du pm", "decision/recommandation du pm", "recommandation du pm", "recommandation", "recommendation", "pm recommendation", "pm decision", "decision du pm", "decision", "pm decision/recommendation"] },
 ];
 
 /** The narrative sections shown on the Project Details tab, in display order. */
@@ -67,6 +71,8 @@ const NARRATIVE_ORDER: Array<{ kind: Kind; title: string }> = [
   { kind: "why", title: "Pourquoi nous le faisons" },
   { kind: "success", title: "Critère de succès" },
   { kind: "deliverable", title: "Livrable clé" },
+  { kind: "risks", title: "Risques & Problèmes" },
+  { kind: "recommendation", title: "Décision ou Recommandation du PM" },
 ];
 
 function labelKind(line: string): Kind | null {
