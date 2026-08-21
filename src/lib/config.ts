@@ -24,6 +24,17 @@ export const OVER_BUDGET_RED_PCT = 110; // consumed ≥ 110 % of budget → hard
 export const OVERDUE_TASKS_RED = 5; // this many overdue tasks → hard Red
 
 /**
+ * Traffic-light (per-dimension RAG) thresholds for the Overview status lights.
+ * These drive the discrete Schedule / Budget / Deliverables lights, which are
+ * rule-based and explainable (see docs/METRICS.md §3.5), independent of the
+ * weighted 0–100 health score.
+ */
+export const SCHEDULE_LATE_AMBER_DAYS = 5; // lateness ≥ 5 days → Schedule Amber
+export const SCHEDULE_LATE_RED_DAYS = 10; // lateness ≥ 10 days → Schedule Red
+export const BUDGET_BURN_AHEAD_AMBER_PCT = 25; // hours burned this far ahead of progress → Budget Amber
+export const DELIVERY_BLOCKED_RED = 3; // this many blocked tasks → Deliverables Red
+
+/**
  * Forecast tolerances — how far the projected finish (from EAC/VAC and SPI)
  * may drift from plan before it's flagged. A little slack avoids crying wolf
  * over rounding-level variances.

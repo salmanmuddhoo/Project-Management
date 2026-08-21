@@ -24,6 +24,10 @@ All the knobs live in **`src/lib/config.ts`**:
 | `CPI_WARN` | `0.9` | CPI below this adds a budget risk reason (critical below 0.75). |
 | `OVER_BUDGET_RED_PCT` | `110` | Hours consumed ≥ 110 % of budget → **hard-stop Red** (see §3). |
 | `OVERDUE_TASKS_RED` | `5` | This many overdue tasks → **hard-stop Red**. |
+| `SCHEDULE_LATE_AMBER_DAYS` | `5` | Schedule traffic light turns **Amber** at ≥ 5 days late (see §3.5). |
+| `SCHEDULE_LATE_RED_DAYS` | `10` | Schedule traffic light turns **Red** at ≥ 10 days late (see §3.5). |
+| `BUDGET_BURN_AHEAD_AMBER_PCT` | `25` | Hours burned this far ahead of progress → Budget traffic light **Amber**. |
+| `DELIVERY_BLOCKED_RED` | `3` | This many blocked tasks → Deliverables traffic light **Red**. |
 | `FORECAST_BUDGET_TOLERANCE_PCT` | `5` | Forecast within ±5 % of budget still counts as "within budget". |
 | `FORECAST_SCHEDULE_TOLERANCE_PCT` | `5` | Forecast finish within ±5 % of planned duration still counts as "on time". |
 
@@ -169,6 +173,82 @@ A forced Red adds a critical reason explaining why (`ragForcedRed = true`).
 
 ---
 
+## 3.5 Project lifecycle & the Overview traffic lights
+
+File: **`src/lib/metrics/dimensionRag.ts`** (`computeStatusLights`). Built once per
+import inside `buildSnapshot()` and shown as the **"Project status"** card at the
+top of the Overview.
+
+These lights are **separate from the weighted health score (§3)**. The health
+score is a smooth 0–100 blend; the traffic lights are **discrete and
+rule-based** so each one can state a plain "why" (e.g. "past the end date by 12
+days"). They exist to give an at-a-glance RAG per dimension, matching the master
+Excel's Calendrier / Budget / Périmètre colours.
+
+### Colour vocabulary
+| Colour | Meaning |
+| --- | --- |
+| 🟢 **green** | on track |
+| 🟡 **amber** | at risk — watch it |
+| 🔴 **red** | off track — needs action |
+| 🔵 **blue** | complete |
+| ⚪ **grey** | not started, or no data to judge |
+
+### Lifecycle (derived from the Planner buckets)
+The **Project Charter** card lives in the "Project Details" bucket, which the
+importer excludes from `project.tasks` — so only real work cards are considered:
+- **Complete** — there is at least one task and **every** task sits in a *done*
+  bucket (`completed`, `done`, `terminé`, `closed`, …).
+- **Not started** — there are **no** cards at all, **or** no card has moved into
+  an *In Progress*, *Blocked* or *Completed* bucket yet (everything is still in
+  backlog / to-do buckets).
+- **Active** — anything in between.
+
+The card header badge shows this state. It also drives the **overall** colour:
+grey if *not started*, blue if *complete*, otherwise the **worst** of the three
+lights below (red > amber > green).
+
+### Schedule light
+Grey if the charter has no start or end date. Otherwise the light is driven by
+**how many days late** the project is — the worst of two independent measures:
+- **Overdue days** — if past the end date and not complete: `days(end → today)`.
+- **Behind-pace days** — how far delivery trails the clock:
+  `max(0, (timeElapsedPct − overallProgressPct) / 100 × durationDays)`.
+
+| Colour | Rule |
+| --- | --- |
+| 🟢 green | late `< SCHEDULE_LATE_AMBER_DAYS (5)` days |
+| 🟡 amber | late `≥ 5` and `< SCHEDULE_LATE_RED_DAYS (10)` days |
+| 🔴 red | late `≥ 10` days |
+
+*Example:* a project 12 days past its end date and still open shows **red**
+("Past the end date by 12 day(s), not yet complete."). A project only 6 days
+behind its expected pace shows **amber**.
+
+### Budget light
+Grey if there is no hours budget / no time logged. Let
+`burnAhead = max(0, budgetConsumedPct − overallProgressPct)`.
+
+| Colour | Rule |
+| --- | --- |
+| 🔴 red | `budgetConsumedPct ≥ OVER_BUDGET_RED_PCT (110 %)` |
+| 🟡 amber | `budgetConsumedPct ≥ OVER_BUDGET_WARN_PCT (90 %)`, **or** `burnAhead > BUDGET_BURN_AHEAD_AMBER_PCT (25 pp)` |
+| 🟢 green | otherwise |
+
+*Example:* 95 % of the hours used shows **amber**; 40 % of hours used while only
+10 % of the work is done (`burnAhead = 30`) also shows **amber**.
+
+### Deliverables light
+Grey if there are no work tasks.
+
+| Colour | Rule |
+| --- | --- |
+| 🔴 red | `tasksOverdue ≥ OVERDUE_TASKS_RED (5)` **or** `tasksBlocked ≥ DELIVERY_BLOCKED_RED (3)` |
+| 🟡 amber | at least one task overdue or blocked |
+| 🟢 green | none overdue or blocked |
+
+---
+
 ## 4. Forecast ("will it finish on time and on budget?")
 
 File: **`src/lib/metrics/forecast.ts`**. Uses the EVM outputs above.
@@ -249,6 +329,8 @@ This app is single-project, but the report summary uses these:
 | RAG bands (Green/Amber/Red cut-offs) | `ragOf()` in `healthScore.ts` |
 | Neutral score for missing data | `NEUTRAL` in `healthScore.ts` |
 | Hard-stop Red thresholds | `OVER_BUDGET_RED_PCT`, `OVERDUE_TASKS_RED` in `config.ts` (+ logic in `healthScore.ts`) |
+| Overview traffic-light thresholds | `SCHEDULE_LATE_*_DAYS`, `BUDGET_BURN_AHEAD_AMBER_PCT`, `DELIVERY_BLOCKED_RED` in `config.ts` (+ logic in `dimensionRag.ts`) |
+| Lifecycle (not started / active / complete) rule | `computeLifecycle()` in `dimensionRag.ts` |
 | SPI/CPI warning thresholds | `SPI_WARN`, `CPI_WARN` in `config.ts` |
 | Behind-schedule / near-budget warnings | `BEHIND_SCHEDULE_GAP`, `OVER_BUDGET_WARN_PCT` in `config.ts` |
 | How each health dimension is scored | the three blocks in `computeHealthScore()` |

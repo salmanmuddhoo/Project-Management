@@ -14,6 +14,7 @@ import { computeForecast, type ForecastResult } from "./forecast";
 import { computeGovernance, type GovernanceResult } from "./governance";
 import { computeHealthScore, ragOf, type HealthScore } from "./healthScore";
 import { computeProjectMetrics, type ProjectMetrics } from "./projectMetrics";
+import { computeStatusLights, type ProjectStatusLights } from "./dimensionRag";
 
 export interface ProjectSnapshot {
   project: Project;
@@ -23,6 +24,7 @@ export interface ProjectSnapshot {
   governance: GovernanceResult;
   evm: EvmResult;
   forecast: ForecastResult;
+  statusLights: ProjectStatusLights;
 }
 
 export function buildSnapshot(
@@ -42,6 +44,7 @@ export function buildSnapshot(
     governance: computeGovernance(project, metrics),
     evm,
     forecast: computeForecast(evm, metrics),
+    statusLights: computeStatusLights(project, metrics, today),
   };
 }
 
