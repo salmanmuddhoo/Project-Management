@@ -38,6 +38,9 @@ replace, delivery tools like Microsoft Planner or Jira.
 - **Adaptable budget** — the charter budget can be **hours, cost, or both**
   (e.g. `Cost: Rs 1,200,000` and `Hours: 50`); tasks carry effort estimates
   (`3 days`, `2 hrs`) for effort-weighted progress.
+- **Burndown chart** — remaining work (estimated hours or tasks) and remaining
+  hours budget over the charter window, actual vs the expected straight-line
+  burn, with a today marker, an ahead/behind verdict and a data table.
 - **Earned Value Management** — SPI, CPI, EAC, ETC, VAC in whichever units the
   budget provides (time-elapsed baseline), with a plain-language read-out.
 - **Kanban board** — generated from the plan's buckets, session-only drag & drop.

@@ -10,6 +10,7 @@ import type { TimeEntry } from "@/types/time";
 import type { AppSettings } from "@/lib/config";
 import { getSettings } from "@/store/settingsStore";
 import { entriesForProject } from "@/lib/import/importFiles";
+import { computeBurndown, type BurndownResult } from "./burndown";
 import { computeEvm, type EvmResult } from "./evm";
 import { computeForecast, type ForecastResult } from "./forecast";
 import { computeGovernance, type GovernanceResult } from "./governance";
@@ -26,6 +27,7 @@ export interface ProjectSnapshot {
   evm: EvmResult;
   forecast: ForecastResult;
   statusLights: ProjectStatusLights;
+  burndown: BurndownResult;
 }
 
 export function buildSnapshot(
@@ -48,6 +50,7 @@ export function buildSnapshot(
     evm,
     forecast: computeForecast(evm, metrics, settings),
     statusLights: computeStatusLights(project, metrics, today, settings),
+    burndown: computeBurndown(project, metrics, entries, today, settings),
   };
 }
 
