@@ -86,7 +86,7 @@ function statusTable(s: ProjectSnapshot): ReportTable {
     headers: ["Metric", "Value"],
     rows: [
       ["Time elapsed", formatPct(s.metrics.timeElapsedPct)],
-      ["Progress", formatPct(s.metrics.taskCompletionPct)],
+      ["Progress", formatPct(s.metrics.overallProgressPct)],
       ["Days remaining", s.metrics.daysRemaining ?? "—"],
       ["Tasks", `${s.metrics.tasksCompleted}/${s.metrics.tasksTotal} done`],
       ["In progress / Blocked / Overdue", `${s.metrics.tasksInProgress} / ${s.metrics.tasksBlocked} / ${s.metrics.tasksOverdue}`],
