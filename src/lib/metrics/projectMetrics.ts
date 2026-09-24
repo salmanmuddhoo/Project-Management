@@ -6,8 +6,9 @@
 
 import type { Project, Task } from "@/types/project";
 import type { TimeEntry } from "@/types/time";
-import { HOURS_PER_DAY } from "@/lib/config";
-import { clamp, daysBetween, ratio } from "@/lib/utils";
+import type { AppSettings } from "@/lib/config";
+import { clamp, daysBetween, effortToHours, ratio } from "@/lib/utils";
+import { getSettings } from "@/store/settingsStore";
 
 export interface ResourceTime {
   name: string;
@@ -62,18 +63,37 @@ export interface ProjectMetrics {
   overallProgressPct: number;
 }
 
-const DONE_BUCKETS = ["completed", "done", "terminé", "terminée", "terminées", "termine", "closed", "clos"];
-const BLOCKED_BUCKETS = ["blocked", "bloqué", "bloque", "on hold"];
-const PROGRESS_BUCKETS = ["in progress", "en cours", "doing", "wip"];
-
+// Bucket names that mean done / blocked / in progress come from Settings.
 const norm = (s: string) => s.trim().toLowerCase();
-export const isDoneBucket = (b: string) => DONE_BUCKETS.includes(norm(b));
-export const isBlockedBucket = (b: string) => BLOCKED_BUCKETS.includes(norm(b));
-export const isProgressBucket = (b: string) => PROGRESS_BUCKETS.includes(norm(b));
+const inList = (list: string[], b: string) => {
+  const n = norm(b);
+  return list.some((x) => norm(x) === n);
+};
+export const isDoneBucket = (b: string, s: AppSettings = getSettings()) => inList(s.doneBuckets, b);
+export const isBlockedBucket = (b: string, s: AppSettings = getSettings()) => inList(s.blockedBuckets, b);
+export const isProgressBucket = (b: string, s: AppSettings = getSettings()) => inList(s.progressBuckets, b);
 
-function isTaskDone(t: Task): boolean {
+/**
+ * Re-derive hour quantities from the raw efforts as written ("3 days"), so a
+ * change to the hours-per-day setting applies to an already-imported board.
+ */
+export function withHoursPerDay(project: Project, hoursPerDay: number): Project {
+  const c = project.charter;
+  const budgetHours = c.budgetEffort != null ? effortToHours(c.budgetEffort, hoursPerDay) : c.budgetHours;
+  return {
+    ...project,
+    charter: budgetHours === c.budgetHours ? c : { ...c, budgetHours },
+    tasks: project.tasks.map((t) => {
+      if (t.estimate == null) return t;
+      const estimateHours = effortToHours(t.estimate, hoursPerDay);
+      return estimateHours === t.estimateHours ? t : { ...t, estimateHours };
+    }),
+  };
+}
+
+export function isTaskDone(t: Task, s: AppSettings = getSettings()): boolean {
   return (
-    isDoneBucket(t.bucket) ||
+    isDoneBucket(t.bucket, s) ||
     t.endDate != null ||
     norm(t.progressStatus).startsWith("termin") ||
     (t.progressPct ?? 0) >= 100
@@ -81,8 +101,8 @@ function isTaskDone(t: Task): boolean {
 }
 
 /** A task's completion 0–100: done ⇒ 100, else its entered progress (or 0). */
-function taskProgress(t: Task): number {
-  if (isTaskDone(t)) return 100;
+function taskProgress(t: Task, s: AppSettings): number {
+  if (isTaskDone(t, s)) return 100;
   return Math.max(0, Math.min(100, t.progressPct ?? 0));
 }
 
@@ -90,9 +110,12 @@ export function computeProjectMetrics(
   project: Project,
   entries: TimeEntry[],
   today: Date = new Date(),
-  hoursPerDay: number = HOURS_PER_DAY,
+  settings: AppSettings = getSettings(),
 ): ProjectMetrics {
   const { charter } = project;
+  const { hoursPerDay } = settings;
+  const done = (t: Task) => isTaskDone(t, settings);
+  const progressOf = (t: Task) => taskProgress(t, settings);
 
   // -- Schedule -------------------------------------------------------------
   const start = charter.startDate;
@@ -106,22 +129,22 @@ export function computeProjectMetrics(
 
   // -- Tasks ----------------------------------------------------------------
   const tasksTotal = project.tasks.length;
-  const tasksCompleted = project.tasks.filter(isTaskDone).length;
-  const tasksBlocked = project.tasks.filter((t) => isBlockedBucket(t.bucket)).length;
-  const tasksInProgress = project.tasks.filter((t) => isProgressBucket(t.bucket)).length;
+  const tasksCompleted = project.tasks.filter(done).length;
+  const tasksBlocked = project.tasks.filter((t) => isBlockedBucket(t.bucket, settings)).length;
+  const tasksInProgress = project.tasks.filter((t) => isProgressBucket(t.bucket, settings)).length;
   const tasksOverdue = project.tasks.filter(
-    (t) => !isTaskDone(t) && (t.overdue || (t.dueDate != null && t.dueDate < today)),
+    (t) => !done(t) && (t.overdue || (t.dueDate != null && t.dueDate < today)),
   ).length;
   // Progress-aware completion: average of each task's % (done ⇒ 100).
   const taskCompletionPct =
     tasksTotal > 0
-      ? project.tasks.reduce((s, t) => s + taskProgress(t), 0) / tasksTotal
+      ? project.tasks.reduce((s, t) => s + progressOf(t), 0) / tasksTotal
       : null;
 
   // Earned value of estimated work: Σ(estimate × progress) ÷ Σ(estimate).
   const estimateHoursTotal = project.tasks.reduce((s, t) => s + (t.estimateHours ?? 0), 0);
   const estimateHoursDone = project.tasks.reduce(
-    (s, t) => s + (t.estimateHours ?? 0) * (taskProgress(t) / 100),
+    (s, t) => s + (t.estimateHours ?? 0) * (progressOf(t) / 100),
     0,
   );
   const effortCompletionPct =

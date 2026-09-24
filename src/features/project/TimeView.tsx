@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/EmptyState";
-import { HOURS_PER_DAY } from "@/lib/config";
+import { useSettings } from "@/store/settingsStore";
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { cn, formatDate, formatNumber, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
@@ -27,6 +27,7 @@ export function TimePage() {
 }
 
 function TimeBody({ snapshot }: { snapshot: ProjectSnapshot }) {
+  const { hoursPerDay, overBudgetWarnPct } = useSettings();
   const { metrics, project, entries } = snapshot;
 
   if (project.timorcCodes.length === 0) {
@@ -54,14 +55,14 @@ function TimeBody({ snapshot }: { snapshot: ProjectSnapshot }) {
         <CardContent className="space-y-2">
           <div className="flex items-center gap-3">
             <Progress value={metrics.budgetConsumedPct ?? 0} className="h-2 flex-1"
-              barClassName={metrics.overBudget ? "bg-red-600" : (metrics.budgetConsumedPct ?? 0) >= 90 ? "bg-amber-500" : "bg-primary"} />
+              barClassName={metrics.overBudget ? "bg-red-600" : (metrics.budgetConsumedPct ?? 0) >= overBudgetWarnPct ? "bg-amber-500" : "bg-primary"} />
             <span className="tnum text-sm font-medium">{formatPct(metrics.budgetConsumedPct)}</span>
           </div>
           <div className="flex flex-wrap gap-2 text-xs">
             <Badge variant="muted">Budget: {metrics.budgetHours == null ? "—" : `${Math.round(metrics.budgetHours)}h`}</Badge>
             <Badge variant="muted">Consumed: {Math.round(metrics.consumedHours)}h ({formatNumber(metrics.consumedDays)} days)</Badge>
             <Badge variant="muted">Remaining: {metrics.remainingHours == null ? "—" : `${Math.round(metrics.remainingHours)}h`}</Badge>
-            <Badge variant="muted">{metrics.timeEntryCount} time entries · {HOURS_PER_DAY}h/day</Badge>
+            <Badge variant="muted">{metrics.timeEntryCount} time entries · {hoursPerDay}h/day</Badge>
           </div>
         </CardContent>
       </Card>

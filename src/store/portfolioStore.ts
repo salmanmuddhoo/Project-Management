@@ -13,6 +13,7 @@ import { create } from "zustand";
 import { buildSnapshot, type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import type { Project } from "@/types/project";
 import type { TimeEntry } from "@/types/time";
+import { useSettings } from "./settingsStore";
 
 interface PortfolioState {
   projects: Project[];
@@ -86,6 +87,8 @@ export function useActiveSnapshot(): ProjectSnapshot | undefined {
   const overrides = usePortfolioStore((s) => s.kanbanOverrides);
   const risksIssues = usePortfolioStore((s) => s.risksIssues);
   const pmRecommendation = usePortfolioStore((s) => s.pmRecommendation);
+  // Settings changes (thresholds, hours/day, buckets…) recompute everything live.
+  const settings = useSettings();
   return useMemo(() => {
     const project = projects[0];
     if (!project) return undefined;
@@ -93,8 +96,8 @@ export function useActiveSnapshot(): ProjectSnapshot | undefined {
       ...project,
       charter: { ...project.charter, risksIssues, pmRecommendation },
     };
-    return buildSnapshot(withOverrides(withNotes, overrides), timeEntries);
-  }, [projects, timeEntries, overrides, risksIssues, pmRecommendation]);
+    return buildSnapshot(withOverrides(withNotes, overrides), timeEntries, new Date(), settings);
+  }, [projects, timeEntries, overrides, risksIssues, pmRecommendation, settings]);
 }
 
 export function useHasProject(): boolean {

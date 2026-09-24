@@ -7,6 +7,7 @@
  */
 
 import { type ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
+import { isDoneBucket } from "@/lib/metrics/projectMetrics";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { daysBetween, formatCost, formatDate, formatHours, formatNumber, formatPct } from "@/lib/utils";
 
@@ -173,7 +174,7 @@ function forecastTable(s: ProjectSnapshot): ReportTable | null {
 
 function tasksTable(s: ProjectSnapshot): ReportTable {
   const done = (t: (typeof s.project.tasks)[number]) =>
-    ["completed", "done", "terminé", "terminée", "terminées"].includes(t.bucket.trim().toLowerCase()) ||
+    isDoneBucket(t.bucket) ||
     t.endDate != null || (t.progressPct ?? 0) >= 100;
   return {
     title: "Tasks",

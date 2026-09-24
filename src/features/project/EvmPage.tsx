@@ -13,7 +13,7 @@ import { useChartTheme } from "@/components/charts/chartTheme";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EvmUnit } from "@/lib/metrics/evm";
-import { HOURS_PER_DAY } from "@/lib/config";
+import { useSettings } from "@/store/settingsStore";
 import { formatCost, formatNumber } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
@@ -36,6 +36,7 @@ function interpretation(u: EvmUnit): string {
 
 export function EvmPage() {
   const snapshot = useActiveSnapshot();
+  const hoursPerDay = useSettings().hoursPerDay;
   const theme = useChartTheme();
   if (!snapshot) return <EmptyState />;
   const { evm, metrics } = snapshot;
@@ -85,10 +86,10 @@ export function EvmPage() {
       : "average of task progress"],
     ["% planned", `${Math.round(evm.plannedPercent)}%`, elapsedDays != null && metrics.durationDays != null
       ? `${elapsedDays} of ${metrics.durationDays} days elapsed (time-elapsed baseline)` : "time elapsed on the charter dates"],
-    ["Actual cost (AC)", `${Math.round(metrics.consumedHours)}h`, `${formatNumber(metrics.consumedDays)} man-days logged in Timorc × ${HOURS_PER_DAY}h`],
+    ["Actual cost (AC)", `${Math.round(metrics.consumedHours)}h`, `${formatNumber(metrics.consumedDays)} man-days logged in Timorc × ${hoursPerDay}h`],
     ["Budget (BAC)", [c.budgetHours != null ? `${Math.round(c.budgetHours)}h` : null, c.budgetCost != null ? formatCost(c.budgetCost, c.currency) : null].filter(Boolean).join(" · ") || "—", "from the charter Budget block"],
     ...(rate != null ? [["Rate", formatCost(rate, c.currency) + "/h", "cost budget ÷ hours budget — prices Timorc hours into cost"] as [string, string, string]] : []),
-    ["Conversion", `1 day = ${HOURS_PER_DAY} hours`, "used for task estimates and Timorc man-days"],
+    ["Conversion", `1 day = ${hoursPerDay} hours`, "used for task estimates and Timorc man-days"],
   ];
 
   return (

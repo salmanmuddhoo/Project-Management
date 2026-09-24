@@ -2,7 +2,7 @@
 
 This document explains **every calculated metric** in the app — how it is
 computed, what thresholds decide its colour/verdict, and **which file and
-constant to change** if you want to tune it.
+setting to change** (from the in-app Settings menu) if you want to tune it.
 
 > All calculations run in the browser over the imported Planner board + Timorc
 > time. Nothing is stored. Each view (Overview, EVM, Reports…) reads the same
@@ -11,29 +11,41 @@ constant to change** if you want to tune it.
 
 ---
 
-## 0. Constants you can tune
+## 0. Settings you can tune
 
-All the knobs live in **`src/lib/config.ts`**:
+Every threshold, weight and name below can be changed **in the app** from the
+**Settings** menu (sidebar). Changes apply immediately to every page and
+report and are remembered in the browser (`localStorage`, key
+`ppm-settings`); no project data is stored. Each field shows its default and
+can be reset individually, per section, or all at once, and the whole set can
+be exported/imported as JSON to share with a team.
 
-| Constant | Value | Meaning |
-| --- | --- | --- |
-| `HOURS_PER_DAY` | `7` | 1 working day = 7 hours. Converts Timorc man-days ↔ hours and task-estimate days ↔ hours. |
-| `OVER_BUDGET_WARN_PCT` | `90` | Hours consumed ≥ 90 % of budget → a "budget nearly exhausted" warning. |
-| `BEHIND_SCHEDULE_GAP` | `20` | (time elapsed % − progress %) beyond this → a "behind schedule" risk reason. |
-| `SPI_WARN` | `0.9` | SPI below this adds a schedule risk reason (critical below 0.75). |
-| `CPI_WARN` | `0.9` | CPI below this adds a budget risk reason (critical below 0.75). |
-| `OVER_BUDGET_RED_PCT` | `110` | Hours consumed ≥ 110 % of budget → **hard-stop Red** (see §3). |
-| `OVERDUE_TASKS_RED` | `5` | This many overdue tasks → **hard-stop Red**. |
-| `SCHEDULE_LATE_AMBER_DAYS` | `5` | Schedule traffic light turns **Amber** at ≥ 5 days late (see §3.5). |
-| `SCHEDULE_LATE_RED_DAYS` | `10` | Schedule traffic light turns **Red** at ≥ 10 days late (see §3.5). |
-| `BUDGET_BURN_AHEAD_AMBER_PCT` | `25` | Hours burned this far ahead of progress → Budget traffic light **Amber**. |
-| `DELIVERY_BLOCKED_RED` | `3` | This many blocked tasks → Deliverables traffic light **Red**. |
-| `FORECAST_BUDGET_TOLERANCE_PCT` | `5` | Forecast within ±5 % of budget still counts as "within budget". |
-| `FORECAST_SCHEDULE_TOLERANCE_PCT` | `5` | Forecast finish within ±5 % of planned duration still counts as "on time". |
+The defaults are defined in **`src/lib/config.ts`** (`DEFAULT_SETTINGS`):
 
-The **health weights** (40 / 30 / 30) are in `HEALTH_WEIGHTS`
-(`src/lib/metrics/healthScore.ts`). The **governance standard** (70) is in
-`src/lib/metrics/recommendations.ts`.
+| Setting (Settings page) | Key | Default | Meaning |
+| --- | --- | --- | --- |
+| Hours per working day | `hoursPerDay` | `7` | 1 working day = 7 hours. Converts Timorc man-days, task estimates and day-based budgets to hours. |
+| Schedule / Budget / Delivery weight | `weightSchedule` · `weightBudget` · `weightDelivery` | `0.4` · `0.3` · `0.3` | Health-score weights, normalised to sum to 1 (see §3). |
+| Green from score / Amber from score | `ragGreenMin` · `ragAmberMin` | `80` · `60` | RAG bands of the 0–100 health score. |
+| Neutral score (no data) | `neutralScore` | `75` | Score of a dimension with no data. |
+| Behind schedule gap / critical gap | `behindScheduleGap` · `behindScheduleCriticalGap` | `20` · `40` | (time elapsed % − progress %) beyond this → a "behind schedule" reason / critical. |
+| SPI / CPI warning below | `spiWarn` · `cpiWarn` | `0.9` · `0.9` | SPI/CPI below this adds a schedule/budget risk reason. |
+| SPI / CPI critical below | `indexCritical` | `0.75` | …which becomes critical below this. |
+| Budget nearly exhausted at | `overBudgetWarnPct` | `90` | Hours consumed ≥ 90 % of budget → warning, Budget light **Amber**. |
+| Significantly over budget at | `overBudgetRedPct` | `110` | Hours consumed ≥ 110 % → **hard-stop Red** (§3) and Budget light **Red**. |
+| Burn ahead of delivery | `budgetBurnAheadPct` | `25` | % budget used − % progress beyond this → warning, Budget light **Amber**. |
+| Overdue tasks — critical from | `overdueTasksCritical` | `3` | The overdue-tasks reason becomes critical. |
+| Overdue tasks — hard Red from | `overdueTasksRed` | `5` | **Hard-stop Red** and Deliverables light **Red**. |
+| Schedule Amber / Red from | `scheduleLateAmberDays` · `scheduleLateRedDays` | `5` · `10` | Schedule traffic light by days late (§3.5). |
+| Deliverables Red from | `deliveryBlockedRed` | `3` | This many blocked tasks → Deliverables light **Red**. |
+| Budget / Schedule tolerance | `forecastBudgetTolerancePct` · `forecastScheduleTolerancePct` | `5` · `5` | Forecast slack before "over budget" / "late" (§5). |
+| Governance standard | `governanceStandard` | `70` | Governance score below this → recommendation. |
+| Done / Blocked / In-progress buckets | `doneBuckets` · `blockedBuckets` · `progressBuckets` | see Settings | Bucket names (case-insensitive) that classify tasks. |
+| Planner import names | `projectDetailsBucket` · `charterCardTitle` · `timorcCardTitle` · `resourcesCardTitle` · `defaultBucket` | `Project Details` · `Project Charter` · `Taches Timorc` · `Resources` · `Backlog` | Special bucket/card names. Applied at the next import. |
+| Score formula (advanced) | `scheduleLagFactor` · `scheduleOverduePenalty` · `budgetOverrunFactor` · `budgetBurnAheadFactor` · `deliveryBaseBonus` · `deliveryBlockedPenalty` · `deliveryOverduePenalty` | `1.5` · `8` · `2.5` · `0.4` · `40` · `12` · `6` | Coefficients inside the three health dimensions (§3). |
+
+The formulas below are written with the default values; each number that is
+a setting is followed by its key where it first appears.
 
 ---
 
@@ -68,7 +80,7 @@ This single number feeds EVM, the health score and the forecast.
 - `overdue = end < today AND overall completion < 100 %`
 
 ### Time & budget (hours)
-- `consumedDays = Σ Timorc entry days` · `consumedHours = consumedDays × HOURS_PER_DAY`
+- `consumedDays = Σ Timorc entry days` · `consumedHours = consumedDays × hoursPerDay`
 - `budgetConsumedPct = consumedHours ÷ budgetHours × 100` (null if no hours budget)
 - `remainingHours = budgetHours − consumedHours`
 - `overBudget = consumedHours > budgetHours`
@@ -111,7 +123,7 @@ File: **`src/lib/metrics/healthScore.ts`**
 Three weighted dimensions, each scored 0–100. **A dimension with no data scores
 a neutral `75`** (so incomplete projects aren't unfairly punished).
 
-Weights (`HEALTH_WEIGHTS`): **Schedule 40 % · Budget 30 % · Delivery 30 %**.
+Weights (Settings › Health score & RAG, normalised to sum to 1): **Schedule 40 % · Budget 30 % · Delivery 30 %**.
 
 Helper: `indexScore(i) = clamp(i × 100, 0, 100)` — maps an SPI/CPI onto 0–100.
 
@@ -153,21 +165,21 @@ score = round( Σ (dimensionScore ?? 75) × weight )
 ### Hard-stop rules (force Red)
 Regardless of the weighted score, the RAG is forced to **Red** if **any** of:
 - the project is **past its end date and not complete** (`overdue`), or
-- hours consumed **≥ `OVER_BUDGET_RED_PCT` (110 %)** of budget, or
-- **≥ `OVERDUE_TASKS_RED` (5)** overdue tasks.
+- hours consumed **≥ `overBudgetRedPct` (110 %)** of budget, or
+- **≥ `overdueTasksRed` (5)** overdue tasks.
 
 A forced Red adds a critical reason explaining why (`ragForcedRed = true`).
 
 ### Risk reasons (the "why", shown on Overview & in the report)
 | Reason | Trigger |
 | --- | --- |
-| Behind schedule | `lag > BEHIND_SCHEDULE_GAP (20)` (critical if `lag > 40`) |
-| Schedule performance behind plan | `SPI < SPI_WARN (0.9)` (critical if `< 0.75`) |
+| Behind schedule | `lag > behindScheduleGap (20)` (critical if `lag > behindScheduleCriticalGap (40)`) |
+| Schedule performance behind plan | `SPI < spiWarn (0.9)` (critical if `< indexCritical (0.75)`) |
 | Past its end date | `overdue` |
 | N overdue task(s) | `tasksOverdue > 0` (critical if `≥ 3`) |
 | Over budget | `overBudget` (critical) |
-| Budget nearly exhausted | `budgetConsumedPct ≥ OVER_BUDGET_WARN_PCT (90)` |
-| Cost efficiency below plan | `CPI < CPI_WARN (0.9)` and not over budget (critical if `< 0.75`) |
+| Budget nearly exhausted | `budgetConsumedPct ≥ overBudgetWarnPct (90)` |
+| Cost efficiency below plan | `CPI < cpiWarn (0.9)` and not over budget (critical if `< indexCritical (0.75)`) |
 | Hours burning faster than delivery | `burnAhead > 25` and not over budget |
 | N blocked task(s) | `tasksBlocked > 0` |
 
@@ -217,8 +229,8 @@ Grey if the charter has no start or end date. Otherwise the light is driven by
 
 | Colour | Rule |
 | --- | --- |
-| 🟢 green | late `< SCHEDULE_LATE_AMBER_DAYS (5)` days |
-| 🟡 amber | late `≥ 5` and `< SCHEDULE_LATE_RED_DAYS (10)` days |
+| 🟢 green | late `< scheduleLateAmberDays (5)` days |
+| 🟡 amber | late `≥ 5` and `< scheduleLateRedDays (10)` days |
 | 🔴 red | late `≥ 10` days |
 
 *Example:* a project 12 days past its end date and still open shows **red**
@@ -231,8 +243,8 @@ Grey if there is no hours budget / no time logged. Let
 
 | Colour | Rule |
 | --- | --- |
-| 🔴 red | `budgetConsumedPct ≥ OVER_BUDGET_RED_PCT (110 %)` |
-| 🟡 amber | `budgetConsumedPct ≥ OVER_BUDGET_WARN_PCT (90 %)`, **or** `burnAhead > BUDGET_BURN_AHEAD_AMBER_PCT (25 pp)` |
+| 🔴 red | `budgetConsumedPct ≥ overBudgetRedPct (110 %)` |
+| 🟡 amber | `budgetConsumedPct ≥ overBudgetWarnPct (90 %)`, **or** `burnAhead > budgetBurnAheadPct (25 pp)` |
 | 🟢 green | otherwise |
 
 *Example:* 95 % of the hours used shows **amber**; 40 % of hours used while only
@@ -243,7 +255,7 @@ Grey if there are no work tasks.
 
 | Colour | Rule |
 | --- | --- |
-| 🔴 red | `tasksOverdue ≥ OVERDUE_TASKS_RED (5)` **or** `tasksBlocked ≥ DELIVERY_BLOCKED_RED (3)` |
+| 🔴 red | `tasksOverdue ≥ overdueTasksRed (5)` **or** `tasksBlocked ≥ deliveryBlockedRed (3)` |
 | 🟡 amber | at least one task overdue or blocked |
 | 🟢 green | none overdue or blocked |
 
@@ -256,7 +268,7 @@ File: **`src/lib/metrics/forecast.ts`**. Uses the EVM outputs above.
 ### Budget outlook (from EAC / VAC, primary unit)
 ```
 overrunPct = (EAC − BAC) ÷ BAC × 100
-outlook = overrunPct > FORECAST_BUDGET_TOLERANCE_PCT (5)  →  "over"
+outlook = overrunPct > forecastBudgetTolerancePct (5)  →  "over"
           else                                            →  "within"
           (EAC unknown, e.g. no time logged)              →  "unknown"
 ```
@@ -267,7 +279,7 @@ outlook = overrunPct > FORECAST_BUDGET_TOLERANCE_PCT (5)  →  "over"
 forecastDuration = durationDays ÷ SPI          (independent estimate of duration)
 forecastEnd      = startDate + forecastDuration
 daysVariance     = days(plannedEnd → forecastEnd)   (positive ⇒ late)
-tolDays          = FORECAST_SCHEDULE_TOLERANCE_PCT (5%) × durationDays
+tolDays          = forecastScheduleTolerancePct (5%) × durationDays
 outlook = daysVariance > tolDays  →  "over" (late)
           else                    →  "within" (on time)
 ```
@@ -304,7 +316,7 @@ File: **`src/lib/metrics/recommendations.ts`**. Collects every health **risk
 reason** (categorised as Budget / Schedule / Delivery), and adds:
 - a **Time** warning if no Timorc code is on the board, and
 - a **Governance** warning if the governance score is below the company
-  standard **`GOVERNANCE_STANDARD` (70)**.
+  standard **`governanceStandard` (70)**.
 
 Findings are sorted critical → warning → info.
 
@@ -322,20 +334,26 @@ This app is single-project, but the report summary uses these:
 
 ## Quick reference — what to change, and where
 
-| To change… | Edit |
+Values are changed from the **Settings** menu; the table names the setting
+and, for rules that are code rather than numbers, the function to edit.
+
+| To change… | Where |
 | --- | --- |
-| Hours per working day | `HOURS_PER_DAY` in `config.ts` |
-| Health weights (schedule/budget/delivery) | `HEALTH_WEIGHTS` in `healthScore.ts` |
-| RAG bands (Green/Amber/Red cut-offs) | `ragOf()` in `healthScore.ts` |
-| Neutral score for missing data | `NEUTRAL` in `healthScore.ts` |
-| Hard-stop Red thresholds | `OVER_BUDGET_RED_PCT`, `OVERDUE_TASKS_RED` in `config.ts` (+ logic in `healthScore.ts`) |
-| Overview traffic-light thresholds | `SCHEDULE_LATE_*_DAYS`, `BUDGET_BURN_AHEAD_AMBER_PCT`, `DELIVERY_BLOCKED_RED` in `config.ts` (+ logic in `dimensionRag.ts`) |
-| Lifecycle (not started / active / complete) rule | `computeLifecycle()` in `dimensionRag.ts` |
-| SPI/CPI warning thresholds | `SPI_WARN`, `CPI_WARN` in `config.ts` |
-| Behind-schedule / near-budget warnings | `BEHIND_SCHEDULE_GAP`, `OVER_BUDGET_WARN_PCT` in `config.ts` |
-| How each health dimension is scored | the three blocks in `computeHealthScore()` |
-| Forecast tolerances | `FORECAST_*_TOLERANCE_PCT` in `config.ts` |
+| Hours per working day | Settings › Units (`hoursPerDay`) |
+| Health weights (schedule/budget/delivery) | Settings › Health score & RAG |
+| RAG bands (Green/Amber/Red cut-offs) | Settings › Health score & RAG (`ragGreenMin`, `ragAmberMin`) |
+| Neutral score for missing data | Settings › Health score & RAG (`neutralScore`) |
+| Hard-stop Red thresholds | Settings › Risk reasons & hard-stop rules (`overBudgetRedPct`, `overdueTasksRed`) |
+| Overview traffic-light thresholds | Settings › Overview traffic lights (+ logic in `dimensionRag.ts`) |
+| Lifecycle (not started / active / complete) rule | Settings › Bucket classification (+ `computeLifecycle()` in `dimensionRag.ts`) |
+| SPI/CPI warning thresholds | Settings › Risk reasons (`spiWarn`, `cpiWarn`, `indexCritical`) |
+| Behind-schedule / near-budget warnings | Settings › Risk reasons (`behindScheduleGap`, `overBudgetWarnPct`) |
+| How each health dimension is scored | Settings › Score formula (advanced), or the blocks in `computeHealthScore()` |
+| Forecast tolerances | Settings › Forecast |
 | Forecast formulas | `computeForecast()` in `forecast.ts` |
 | EVM formulas / cost rate | `evm.ts` |
 | Governance checks | the `checks` array in `governance.ts` |
-| Governance company standard | `GOVERNANCE_STANDARD` in `recommendations.ts` |
+| Governance company standard | Settings › Governance (`governanceStandard`) |
+| Which buckets mean done / blocked / in progress | Settings › Bucket classification |
+| Planner special bucket / card names | Settings › Planner import |
+| Default values themselves | `DEFAULT_SETTINGS` in `src/lib/config.ts` |

@@ -6,9 +6,10 @@ and **Timorc** time-tracking files — matches time to each project, and produce
 executive dashboards, progress, hours-consumed-vs-budget and risk, all **in
 browser memory**.
 
-> **No database. No backend. No storage.** Files are parsed entirely in the
-> browser; refreshing or closing the tab clears the session. Only the
-> light/dark theme preference is kept in `localStorage`.
+> **No database. No backend. No storage of project data.** Files are parsed
+> entirely in the browser; refreshing or closing the tab clears the session.
+> Only UI preferences are kept in `localStorage`: the light/dark theme and
+> your **Settings** (thresholds, weights, bucket/card names).
 
 This is a governance and reporting layer — it complements, and does not
 replace, delivery tools like Microsoft Planner or Jira.
@@ -22,7 +23,7 @@ replace, delivery tools like Microsoft Planner or Jira.
     **Taches Timorc** and **Resources** cards define the project (dates, hours
     budget, Timorc code, team); every other bucket holds work tasks.
   - **Timorc time export (`.csv`/`.xlsx`)** — daily man-days per person, matched
-    to a project by its Timorc code and converted at **7 h/day**.
+    to a project by its Timorc code and converted at **7 h/day** (configurable).
 - **Progress & risk** — hours consumed vs the charter's hours budget, task
   completion, and computed risk reasons (over budget, budget burning ahead of
   delivery, behind schedule, overdue/blocked tasks) → a RAG health score.
@@ -43,6 +44,12 @@ replace, delivery tools like Microsoft Planner or Jira.
 - **Global search** (Ctrl/Cmd-K) across the project, tasks, people and codes.
 - **Reports** — Executive, Status, Time & Budget, Task, Risk and Governance,
   exportable to Excel (ExcelJS) and PDF (jsPDF), fully client-side.
+- **Settings menu** — every threshold, weight and name the calculations use
+  (hours per day, health weights and RAG bands, risk and hard-stop rules,
+  traffic-light and forecast tolerances, governance standard, which buckets
+  mean done/blocked/in progress, Planner card names) is editable in the app.
+  Changes apply live, each field shows its default and can be reset, and the
+  set can be exported/imported as JSON. Defaults live in `src/lib/config.ts`.
 - Light/dark mode, responsive enterprise UI (TailwindCSS + shadcn-style
   components, Recharts).
 
@@ -65,7 +72,7 @@ export formats) and run them through the same pipeline as real files.
 
 - [`docs/METRICS.md`](docs/METRICS.md) — **every calculated metric explained**
   (progress, EVM, health score & RAG, forecast, governance) with the exact
-  formulas, thresholds, and the file/constant to change to tune each one.
+  formulas, thresholds, and the setting (or file) to change to tune each one.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture, data flow,
   folder structure, calculation & health models, wireframes.
 - [`docs/EXCEL_TEMPLATE.md`](docs/EXCEL_TEMPLATE.md) — the standard workbook

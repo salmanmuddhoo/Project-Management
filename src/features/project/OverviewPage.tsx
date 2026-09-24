@@ -9,7 +9,7 @@ import { RagBadge } from "@/components/shared/badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { HOURS_PER_DAY } from "@/lib/config";
+import { useSettings } from "@/store/settingsStore";
 import type { LightColor, LifecycleState, TrafficLight } from "@/lib/metrics/dimensionRag";
 import { ragOf } from "@/lib/metrics/healthScore";
 import { generateRecommendations } from "@/lib/metrics/recommendations";
@@ -55,6 +55,7 @@ function StatusLightRow({ light }: { light: TrafficLight }) {
 
 export function OverviewPage() {
   const snapshot = useActiveSnapshot();
+  const { hoursPerDay, overBudgetWarnPct } = useSettings();
   if (!snapshot) return <EmptyState />;
   const { project, metrics, health, evm, statusLights } = snapshot;
 
@@ -146,7 +147,7 @@ export function OverviewPage() {
           <CardContent className="space-y-2">
             <div className="flex items-center gap-3">
               <Progress value={metrics.budgetConsumedPct ?? 0} className="h-2 flex-1"
-                barClassName={metrics.overBudget ? "bg-red-600" : (metrics.budgetConsumedPct ?? 0) >= 90 ? "bg-amber-500" : "bg-primary"} />
+                barClassName={metrics.overBudget ? "bg-red-600" : (metrics.budgetConsumedPct ?? 0) >= overBudgetWarnPct ? "bg-amber-500" : "bg-primary"} />
               <span className="tnum text-sm font-medium">{formatPct(metrics.budgetConsumedPct)}</span>
             </div>
             <div className="flex flex-wrap gap-2 text-xs">
@@ -156,7 +157,7 @@ export function OverviewPage() {
               )}
               <Badge variant="muted">Consumed: {Math.round(metrics.consumedHours)}h</Badge>
               <Badge variant="muted">Remaining: {metrics.remainingHours == null ? "—" : `${Math.round(metrics.remainingHours)}h`}</Badge>
-              <Badge variant="muted">{metrics.timeEntryCount} entries · {HOURS_PER_DAY}h/day</Badge>
+              <Badge variant="muted">{metrics.timeEntryCount} entries · {hoursPerDay}h/day</Badge>
             </div>
           </CardContent>
         </Card>

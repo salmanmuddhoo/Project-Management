@@ -7,6 +7,7 @@ import {
   ListTodo,
   Menu,
   Search,
+  Settings,
   ShieldCheck,
   FileBarChart2,
   Users,
@@ -30,6 +31,7 @@ const NAV = [
   { to: "/time", label: "Time", icon: Clock },
   { to: "/reports", label: "Reports", icon: FileBarChart2 },
   { to: "/import", label: "Import", icon: FileUp },
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppShell() {
@@ -77,8 +79,8 @@ export function AppShell() {
         {nav}
         <div className="mt-auto p-4">
           <p className="rounded-md bg-muted p-3 text-[11px] leading-relaxed text-muted-foreground">
-            All data stays in this browser session. Refreshing or closing the
-            tab clears everything.
+            Project data stays in this browser session. Refreshing or closing
+            the tab clears it; only your settings are remembered.
           </p>
         </div>
       </aside>
