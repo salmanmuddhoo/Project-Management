@@ -176,3 +176,78 @@ export function computeBurndown(
 
   return { work, budget };
 }
+
+// ---------------------------------------------------------------------------
+// Presentation helpers shared by the Overview chart and the PDF report
+// ---------------------------------------------------------------------------
+
+const utcDateFmt = new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** "12h" / "3 tasks" for a burndown value. */
+export function formatBurndownValue(series: BurndownSeries, v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return "—";
+  if (series.unit === "hours") {
+    const r = Math.round(v * 10) / 10;
+    return `${Number.isInteger(r) ? r : r.toFixed(1)}h`;
+  }
+  const n = Math.round(v * 10) / 10;
+  return `${n} task${n === 1 ? "" : "s"}`;
+}
+
+/** Format a burndown day timestamp (UTC midnight) as a date. */
+export function formatBurndownDate(ms: number): string {
+  return utcDateFmt.format(ms);
+}
+
+export interface BurndownVerdict {
+  /** bad = behind plan / burning fast; good = ahead / under burn. */
+  tone: "bad" | "good" | "on-plan" | "not-started";
+  /** Short status label ("Behind plan", "On plan"…). */
+  label: string;
+  /** One sentence with today's numbers. */
+  summary: string;
+}
+
+/**
+ * Today's verdict for a series. Tolerance before flagging = the forecast
+ * tolerance % (schedule for work, budget for hours) of the scope.
+ */
+export function burndownVerdict(series: BurndownSeries, s: AppSettings = getSettings()): BurndownVerdict {
+  if (series.today == null || series.varianceToday == null) {
+    return {
+      tone: "not-started",
+      label: "Not started",
+      summary: `The plan begins ${series.startDate != null ? formatBurndownDate(series.startDate) : "—"}.`,
+    };
+  }
+  const tolPct = series.kind === "work" ? s.forecastScheduleTolerancePct : s.forecastBudgetTolerancePct;
+  const tolerance = (tolPct / 100) * series.total;
+  const v = series.varianceToday;
+  // Work: more remaining than planned ⇒ behind. Budget: less left than planned ⇒ burning fast.
+  const bad = series.kind === "work" ? v > tolerance : v < -tolerance;
+  const good = series.kind === "work" ? v < -tolerance : v > tolerance;
+  const gap = formatBurndownValue(series, Math.abs(v));
+  const fmt = (x: number | null) => formatBurndownValue(series, x);
+
+  const now =
+    series.kind === "budget" && (series.actualToday ?? 0) < 0
+      ? `${fmt(Math.abs(series.actualToday ?? 0))} over budget today`
+      : `${fmt(series.actualToday)} left today`;
+  const head = `${now} vs ${fmt(series.expectedToday)} expected`;
+
+  if (bad) {
+    return {
+      tone: "bad",
+      label: series.kind === "work" ? "Behind plan" : "Burning fast",
+      summary: `${head} — ${gap} ${series.kind === "work" ? "more work left than planned for today" : "less budget left than an even burn"}.`,
+    };
+  }
+  if (good) {
+    return {
+      tone: "good",
+      label: series.kind === "work" ? "Ahead of plan" : "Under burn",
+      summary: `${head} — ${gap} ${series.kind === "work" ? "less work left than planned for today" : "more budget left than an even burn"}.`,
+    };
+  }
+  return { tone: "on-plan", label: "On plan", summary: `${head} — within tolerance of the plan.` };
+}

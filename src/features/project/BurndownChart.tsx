@@ -19,8 +19,13 @@ import {
 
 import { STATUS_COLORS, useChartTheme } from "@/components/charts/chartTheme";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { BurndownResult, BurndownSeries } from "@/lib/metrics/burndown";
-import { cn, formatHours } from "@/lib/utils";
+import {
+  burndownVerdict,
+  formatBurndownValue,
+  type BurndownResult,
+  type BurndownSeries,
+} from "@/lib/metrics/burndown";
+import { cn } from "@/lib/utils";
 import { useSettings } from "@/store/settingsStore";
 
 type View = "work" | "budget";
@@ -28,12 +33,7 @@ type View = "work" | "budget";
 const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
 const longDateFmt = new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
 
-function formatValue(series: BurndownSeries, v: number | null | undefined): string {
-  if (v == null || Number.isNaN(v)) return "—";
-  if (series.unit === "hours") return formatHours(v);
-  const n = Math.round(v * 10) / 10;
-  return `${n} task${n === 1 ? "" : "s"}`;
-}
+const formatValue = formatBurndownValue;
 
 const VIEW_META: Record<View, { label: string; description: string }> = {
   work: {
@@ -86,50 +86,24 @@ export function BurndownCard({ burndown }: { burndown: BurndownResult }) {
   );
 }
 
+const TONE_META = {
+  bad: { color: STATUS_COLORS.critical, Icon: TrendingUp },
+  good: { color: STATUS_COLORS.good, Icon: TrendingDown },
+  "on-plan": { color: STATUS_COLORS.good, Icon: CheckCircle2 },
+  "not-started": { color: undefined, Icon: Clock },
+} as const;
+
 function Verdict({ series }: { series: BurndownSeries }) {
-  const { forecastScheduleTolerancePct, forecastBudgetTolerancePct } = useSettings();
-  if (series.today == null || series.varianceToday == null) {
-    return (
-      <p className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Clock className="h-4 w-4" /> Not started yet — the plan begins {longDateFmt.format(series.startDate ?? 0)}.
-      </p>
-    );
-  }
-
-  const tolPct = series.kind === "work" ? forecastScheduleTolerancePct : forecastBudgetTolerancePct;
-  const tolerance = (tolPct / 100) * series.total;
-  const v = series.varianceToday;
-  // Work: more remaining than planned ⇒ behind. Budget: less left than planned ⇒ burning fast.
-  const bad = series.kind === "work" ? v > tolerance : v < -tolerance;
-  const good = series.kind === "work" ? v < -tolerance : v > tolerance;
-  const gap = formatValue(series, Math.abs(v));
-
-  let status: { label: string; color: string; Icon: typeof CheckCircle2 };
-  let text: string;
-  if (bad) {
-    status = { label: series.kind === "work" ? "Behind plan" : "Burning fast", color: STATUS_COLORS.critical, Icon: TrendingUp };
-    text = series.kind === "work" ? `${gap} more work left than planned for today` : `${gap} less budget left than an even burn`;
-  } else if (good) {
-    status = { label: series.kind === "work" ? "Ahead of plan" : "Under burn", color: STATUS_COLORS.good, Icon: TrendingDown };
-    text = series.kind === "work" ? `${gap} less work left than planned for today` : `${gap} more budget left than an even burn`;
-  } else {
-    status = { label: "On plan", color: STATUS_COLORS.good, Icon: CheckCircle2 };
-    text = "within tolerance of the plan";
-  }
-
+  const settings = useSettings();
+  const verdict = burndownVerdict(series, settings);
+  const { color, Icon } = TONE_META[verdict.tone];
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
       <span className="inline-flex items-center gap-1 font-medium">
-        <status.Icon className="h-4 w-4" style={{ color: status.color }} aria-hidden />
-        {status.label}
+        <Icon className={cn("h-4 w-4", !color && "text-muted-foreground")} style={color ? { color } : undefined} aria-hidden />
+        {verdict.label}
       </span>
-      <span className="text-muted-foreground">
-        ·{" "}
-        {series.kind === "budget" && (series.actualToday ?? 0) < 0
-          ? `${formatValue(series, Math.abs(series.actualToday ?? 0))} over budget today`
-          : `${formatValue(series, series.actualToday)} left today`}{" "}
-        vs {formatValue(series, series.expectedToday)} expected — {text}.
-      </span>
+      <span className="text-muted-foreground">· {verdict.summary}</span>
     </p>
   );
 }

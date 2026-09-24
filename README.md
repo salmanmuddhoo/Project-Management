@@ -46,7 +46,9 @@ replace, delivery tools like Microsoft Planner or Jira.
 - **Kanban board** — generated from the plan's buckets, session-only drag & drop.
 - **Global search** (Ctrl/Cmd-K) across the project, tasks, people and codes.
 - **Reports** — Executive, Status, Time & Budget, Task, Risk and Governance,
-  exportable to Excel (ExcelJS) and PDF (jsPDF), fully client-side.
+  exportable to Excel (ExcelJS) and PDF (jsPDF), fully client-side. The PDF's
+  first page includes the work and hours-budget burndowns; the EVM table is in
+  the Excel export only.
 - **Settings menu** — every threshold, weight and name the calculations use
   (hours per day, health weights and RAG bands, risk and hard-stop rules,
   traffic-light and forecast tolerances, governance standard, which buckets

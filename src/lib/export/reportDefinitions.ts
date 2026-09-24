@@ -220,7 +220,7 @@ export const REPORTS: ReportDefinition[] = [
     key: "project",
     title: "Executive Project Report",
     description:
-      "An executive status overview — project snapshot, task status and priority, budget performance and key highlights — followed by the full details: charter, status, time & budget, EVM, tasks, resources and governance.",
+      "An executive status overview — project snapshot, task status and priority, budget performance, key highlights and burndown — followed by the full details: charter, status, time & budget, tasks, resources and governance.",
     build: (snapshots) => {
       const s = snapshots[0];
       if (!s) return [];
