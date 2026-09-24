@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HOURS_PER_DAY } from "@/lib/config";
+import { useSettings } from "@/store/settingsStore";
 import {
   entriesForProject,
   importFiles,
@@ -42,6 +42,7 @@ export function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hoursPerDay = useSettings().hoursPerDay;
   const addProjects = usePortfolioStore((s) => s.addProjects);
   const addTimeEntries = usePortfolioStore((s) => s.addTimeEntries);
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export function UploadPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Drop your <strong>Microsoft Planner</strong> board export and your{" "}
           <strong>Timorc</strong> time export. Time is matched to the project by its Timorc code
-          (converted at {HOURS_PER_DAY}h per day). This is a single-project app — importing a board
+          (converted at {hoursPerDay}h per day). This is a single-project app — importing a board
           replaces the current one. Everything is processed in your browser — nothing is stored.
         </p>
       </div>
@@ -152,7 +153,7 @@ export function UploadPage() {
                     <Badge variant="muted">{b.project.tasks.length} tasks</Badge>
                     <Badge variant="muted">{b.project.resources.length} resources</Badge>
                     <Badge variant="outline" className={cn(matched.length > 0 ? "border-green-600/30 bg-green-600/10 text-green-700 dark:text-green-400" : "text-muted-foreground")}>
-                      <Clock className="h-3 w-3" /> {Math.round(days * HOURS_PER_DAY)}h matched
+                      <Clock className="h-3 w-3" /> {Math.round(days * hoursPerDay)}h matched
                     </Badge>
                     <Button variant="ghost" size="icon" aria-label="Remove" onClick={() => setBoards((q) => q.filter((x) => x !== b))}>
                       <Trash2 className="h-4 w-4" />

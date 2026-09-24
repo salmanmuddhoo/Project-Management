@@ -106,3 +106,12 @@ export function hashId(text: string): string {
   }
   return Math.abs(hash).toString(36);
 }
+
+/** Convert a raw effort ("3 days" / "50 hrs") to hours at the given hours-per-day. */
+export function effortToHours(
+  effort: { value: number; unit: "hours" | "days" } | null | undefined,
+  hoursPerDay: number,
+): number | null {
+  if (effort == null) return null;
+  return effort.unit === "days" ? effort.value * hoursPerDay : effort.value;
+}

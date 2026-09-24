@@ -77,7 +77,7 @@ Prestation ; Jour ; Temps passé ; Nb jours présence … ; Commentaire`
 Only **daily rows** (with both `Jour` and `Temps passé`) are kept; the
 cumulative summary rows are skipped so hours are never double-counted.
 `Temps passé` is in **man-days** (`0.25` = ¼ day) and is converted to hours at
-**7 h/day** (`src/lib/config.ts`).
+**7 h/day** by default (Settings › Units › Hours per working day).
 
 ## Matching time to a project
 

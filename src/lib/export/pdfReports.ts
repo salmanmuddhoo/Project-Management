@@ -12,6 +12,7 @@ import { jsPDF } from "jspdf";
 import autoTable, { type RowInput, type Styles } from "jspdf-autotable";
 
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
+import { isBlockedBucket, isDoneBucket, isProgressBucket } from "@/lib/metrics/projectMetrics";
 import type { Task } from "@/types/project";
 import { daysBetween, formatCost, formatDate, formatPct } from "@/lib/utils";
 import type { ReportDefinition } from "./reportDefinitions";
@@ -41,19 +42,16 @@ const CARD_HEADER_H = 22;
 
 type StatusKey = "done" | "wip" | "hold" | "late" | "todo";
 
-const DONE_BUCKETS = ["completed", "done", "terminé", "terminée", "terminées", "termine", "closed", "clos"];
-const HOLD_BUCKETS = ["blocked", "bloqué", "bloque", "on hold"];
-const WIP_BUCKETS = ["in progress", "en cours", "doing", "wip"];
-
+// Bucket names come from Settings (the same lists the metrics use).
 function classifyTask(t: Task): { label: string; key: StatusKey } {
-  const b = t.bucket.trim().toLowerCase();
+  const b = t.bucket;
   const status = t.progressStatus.trim().toLowerCase();
   const done =
-    DONE_BUCKETS.includes(b) || t.endDate != null || (t.progressPct ?? 0) >= 100 || status.startsWith("termin");
+    isDoneBucket(b) || t.endDate != null || (t.progressPct ?? 0) >= 100 || status.startsWith("termin");
   if (done) return { label: "Closed", key: "done" };
   if (t.overdue) return { label: "Late", key: "late" };
-  if (HOLD_BUCKETS.includes(b)) return { label: "On Hold", key: "hold" };
-  if (WIP_BUCKETS.includes(b) || (t.progressPct ?? 0) > 0 || status.startsWith("en cours"))
+  if (isBlockedBucket(b)) return { label: "On Hold", key: "hold" };
+  if (isProgressBucket(b) || (t.progressPct ?? 0) > 0 || status.startsWith("en cours"))
     return { label: "In Progress", key: "wip" };
   return { label: "Not Started", key: "todo" };
 }

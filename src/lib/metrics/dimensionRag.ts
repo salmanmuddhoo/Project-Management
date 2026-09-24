@@ -5,7 +5,7 @@
  *
  * Unlike the weighted 0–100 health score (`healthScore.ts`), these lights are
  * intentionally simple and explainable: each is decided by a small set of
- * thresholds (see `src/lib/config.ts` and docs/METRICS.md §3.5) and carries a
+ * thresholds (user Settings, defaults in `src/lib/config.ts`; docs/METRICS.md §3.5) and carries a
  * one-line "reason" stating exactly why it is the colour it is.
  *
  * Colours follow the master Excel vocabulary:
@@ -15,16 +15,9 @@
  */
 
 import type { Project } from "@/types/project";
-import {
-  BUDGET_BURN_AHEAD_AMBER_PCT,
-  DELIVERY_BLOCKED_RED,
-  OVER_BUDGET_RED_PCT,
-  OVER_BUDGET_WARN_PCT,
-  OVERDUE_TASKS_RED,
-  SCHEDULE_LATE_AMBER_DAYS,
-  SCHEDULE_LATE_RED_DAYS,
-} from "@/lib/config";
+import type { AppSettings } from "@/lib/config";
 import { daysBetween } from "@/lib/utils";
+import { getSettings } from "@/store/settingsStore";
 import { isDoneBucket, isBlockedBucket, isProgressBucket } from "./projectMetrics";
 import type { ProjectMetrics } from "./projectMetrics";
 
@@ -58,15 +51,15 @@ export interface ProjectStatusLights {
  *                  bucket (nothing has moved yet), or there are no cards at all
  *  - active      — anything in between
  */
-export function computeLifecycle(project: Project): LifecycleState {
+export function computeLifecycle(project: Project, s: AppSettings = getSettings()): LifecycleState {
   const tasks = project.tasks;
   if (tasks.length === 0) return "not-started";
 
-  const done = tasks.filter((t) => isDoneBucket(t.bucket)).length;
+  const done = tasks.filter((t) => isDoneBucket(t.bucket, s)).length;
   if (done === tasks.length) return "complete";
 
   const started = tasks.filter(
-    (t) => isProgressBucket(t.bucket) || isBlockedBucket(t.bucket) || isDoneBucket(t.bucket),
+    (t) => isProgressBucket(t.bucket, s) || isBlockedBucket(t.bucket, s) || isDoneBucket(t.bucket, s),
   ).length;
   if (started === 0) return "not-started";
 
@@ -76,7 +69,7 @@ export function computeLifecycle(project: Project): LifecycleState {
 /** Rank used to pick the worst light for the overall status. */
 const SEVERITY: Record<LightColor, number> = { red: 3, amber: 2, green: 1, blue: 0, grey: 0 };
 
-function scheduleLight(m: ProjectMetrics, today: Date): TrafficLight {
+function scheduleLight(m: ProjectMetrics, today: Date, s: AppSettings): TrafficLight {
   const base = { key: "schedule" as const, label: "Schedule" };
   if (m.startDate == null || m.endDate == null) {
     return { ...base, color: "grey", reason: "No start/end dates on the charter." };
@@ -104,11 +97,11 @@ function scheduleLight(m: ProjectMetrics, today: Date): TrafficLight {
   }
 
   const color: LightColor =
-    lateDays >= SCHEDULE_LATE_RED_DAYS ? "red" : lateDays >= SCHEDULE_LATE_AMBER_DAYS ? "amber" : "green";
+    lateDays >= s.scheduleLateRedDays ? "red" : lateDays >= s.scheduleLateAmberDays ? "amber" : "green";
   return { ...base, color, reason };
 }
 
-function budgetLight(m: ProjectMetrics): TrafficLight {
+function budgetLight(m: ProjectMetrics, s: AppSettings): TrafficLight {
   const base = { key: "budget" as const, label: "Budget" };
   if (m.budgetConsumedPct == null) {
     return { ...base, color: "grey", reason: "No hours budget / no time logged yet." };
@@ -117,13 +110,13 @@ function budgetLight(m: ProjectMetrics): TrafficLight {
   const pct = Math.round(m.budgetConsumedPct);
   const burnAhead = Math.max(0, m.budgetConsumedPct - m.overallProgressPct);
 
-  if (m.budgetConsumedPct >= OVER_BUDGET_RED_PCT) {
+  if (m.budgetConsumedPct >= s.overBudgetRedPct) {
     return { ...base, color: "red", reason: `Over budget — ${pct}% of hours used.` };
   }
-  if (m.budgetConsumedPct >= OVER_BUDGET_WARN_PCT) {
+  if (m.budgetConsumedPct >= s.overBudgetWarnPct) {
     return { ...base, color: "amber", reason: `Budget nearly exhausted — ${pct}% of hours used.` };
   }
-  if (burnAhead > BUDGET_BURN_AHEAD_AMBER_PCT) {
+  if (burnAhead > s.budgetBurnAheadPct) {
     return {
       ...base,
       color: "amber",
@@ -135,13 +128,13 @@ function budgetLight(m: ProjectMetrics): TrafficLight {
   return { ...base, color: "green", reason: `Within budget — ${pct}% of hours used.` };
 }
 
-function deliverablesLight(m: ProjectMetrics): TrafficLight {
+function deliverablesLight(m: ProjectMetrics, s: AppSettings): TrafficLight {
   const base = { key: "deliverables" as const, label: "Deliverables" };
   if (m.tasksTotal === 0) {
     return { ...base, color: "grey", reason: "No work tasks on the board." };
   }
 
-  if (m.tasksOverdue >= OVERDUE_TASKS_RED || m.tasksBlocked >= DELIVERY_BLOCKED_RED) {
+  if (m.tasksOverdue >= s.overdueTasksRed || m.tasksBlocked >= s.deliveryBlockedRed) {
     return {
       ...base,
       color: "red",
@@ -166,11 +159,12 @@ export function computeStatusLights(
   project: Project,
   m: ProjectMetrics,
   today: Date = new Date(),
+  s: AppSettings = getSettings(),
 ): ProjectStatusLights {
-  const lifecycle = computeLifecycle(project);
-  const schedule = scheduleLight(m, today);
-  const budget = budgetLight(m);
-  const deliverables = deliverablesLight(m);
+  const lifecycle = computeLifecycle(project, s);
+  const schedule = scheduleLight(m, today, s);
+  const budget = budgetLight(m, s);
+  const deliverables = deliverablesLight(m, s);
 
   let overall: LightColor;
   if (lifecycle === "not-started") overall = "grey";

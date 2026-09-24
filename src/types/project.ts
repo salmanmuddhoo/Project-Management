@@ -17,6 +17,15 @@ export type Priority = "Critical" | "High" | "Medium" | "Low" | "";
 
 export type RagStatus = "Green" | "Amber" | "Red";
 
+/**
+ * An effort quantity as written in the source ("3 days", "50 hrs"). Kept raw
+ * so hours can be re-derived when the hours-per-day setting changes.
+ */
+export interface Effort {
+  value: number;
+  unit: "hours" | "days";
+}
+
 /** A titled narrative block from the charter card (Objectif, Why, …). */
 export interface CharterSection {
   title: string;
@@ -37,6 +46,8 @@ export interface ProjectCharter {
   plannedEndDate: Date | null;
   /** Hours budget (null when the project is budgeted in cost only). */
   budgetHours: number | null;
+  /** The hours budget as written (hours or days); `budgetHours` is derived from it. */
+  budgetEffort: Effort | null;
   /** Cost budget (null when budgeted in hours only). */
   budgetCost: number | null;
   /** Currency label for the cost budget (e.g. "Rs"). */
@@ -90,6 +101,8 @@ export interface Task {
   notes: string;
   /** Effort estimate in hours, parsed from a label like "3 days" / "2 hrs". */
   estimateHours: number | null;
+  /** The estimate as written (hours or days); `estimateHours` is derived from it. */
+  estimate: Effort | null;
   /** Manager-entered progress 0–100 ("Avancement : 10%"); null = not set. */
   progressPct: number | null;
 }

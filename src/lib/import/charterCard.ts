@@ -18,14 +18,17 @@
  * section), so a charter written slightly differently still parses.
  */
 
-import { HOURS_PER_DAY } from "@/lib/config";
-import type { CharterSection, Resource } from "@/types/project";
+import type { CharterSection, Effort, Resource } from "@/types/project";
+import { effortToHours } from "@/lib/utils";
+import { getSettings } from "@/store/settingsStore";
 
 export interface ParsedCharterCard {
   projectName: string;
   timorcCodes: string[];
   resources: Resource[];
   budgetHours: number | null;
+  /** The hours budget as written (hours or days). */
+  budgetEffort: Effort | null;
   budgetCost: number | null;
   currency: string;
   /** Planned/target start date ("Date Prévisionnelle" block). */
@@ -84,15 +87,15 @@ function parseMoney(text: string): { amount: number | null; currency: string } {
   return { amount: Number.isFinite(amount) ? amount : null, currency };
 }
 
-/** Parse an hours value; "6 days"/"1 jour" convert at HOURS_PER_DAY. */
-function parseHours(text: string): number | null {
+/** Parse an effort value ("50 hrs", "6 days", "1 jour"); a bare number is hours. */
+function parseEffort(text: string): Effort | null {
   const m = /(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|heures?|d|day|days|j|jour|jours)?/i.exec(text);
   if (!m) return null;
   const n = Number(m[1].replace(",", "."));
   if (!Number.isFinite(n)) return null;
   const unit = (m[2] ?? "").toLowerCase();
   const isDay = /^(d|day|days|j|jour|jours)$/.test(unit);
-  return isDay ? n * HOURS_PER_DAY : n;
+  return { value: n, unit: isDay ? "days" : "hours" };
 }
 
 /** Parse a "dd/mm/yyyy" (or "d/m/yy") date, as written by hand in the notes. */
@@ -158,7 +161,7 @@ export function parseCharterCard(notes: string): ParsedCharterCard {
   const resources = block("resources").map(parseResourceLine).filter((r): r is Resource => r != null);
 
   // Budget lines: classify each as cost or hours.
-  let budgetHours: number | null = null;
+  let budgetEffort: Effort | null = null;
   let budgetCost: number | null = null;
   let currency = "";
   for (const line of block("budget")) {
@@ -171,10 +174,12 @@ export function parseCharterCard(notes: string): ParsedCharterCard {
       const { amount, currency: cur } = parseMoney(value);
       if (amount != null) { budgetCost = amount; if (cur) currency = cur; }
     } else if (isHours || /^\d/.test(value.trim())) {
-      const h = parseHours(value);
-      if (h != null) budgetHours = h;
+      const e = parseEffort(value);
+      if (e != null) budgetEffort = e;
     }
   }
+
+  const budgetHours = effortToHours(budgetEffort, getSettings().hoursPerDay);
 
   const { start: plannedStartDate, end: plannedEndDate } = parsePlannedDates(block("plannedDates"));
   const department = block("department").join(" ").trim();
@@ -185,7 +190,7 @@ export function parseCharterCard(notes: string): ParsedCharterCard {
     .filter((s) => s.body.length > 0);
 
   return {
-    projectName, timorcCodes, resources, budgetHours, budgetCost, currency,
+    projectName, timorcCodes, resources, budgetHours, budgetEffort, budgetCost, currency,
     plannedStartDate, plannedEndDate, department, communication, sections,
   };
 }

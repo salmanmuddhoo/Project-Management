@@ -15,7 +15,7 @@ layer above them.
 | Principle | Consequence |
 |---|---|
 | **No database, no backend** | Static SPA. Files are parsed in the browser (SheetJS + a small CSV reader). Nothing is uploaded. |
-| **No persistence of project data** | All state lives in an in-memory Zustand store. Refresh/close ⇒ gone. Only the theme preference is in `localStorage`. |
+| **No persistence of project data** | All state lives in an in-memory Zustand store. Refresh/close ⇒ gone. Only UI preferences are in `localStorage`: the theme and the user **Settings** (thresholds, weights, bucket/card names — never project content). |
 | **Consume real exports** | The app adapts to Microsoft Planner and Timorc file shapes rather than a bespoke template (see [IMPORT_FORMATS.md](IMPORT_FORMATS.md)). |
 | **Everything derived is computed, never stored** | Progress, consumed hours, health and risk are pure functions of the parsed data. |
 
@@ -56,7 +56,7 @@ Windows-1252 CSV reader for Timorc · **ExcelJS** for Excel report exports ·
 src/
 ├── types/            project.ts · time.ts · validation.ts · filters.ts
 ├── lib/
-│   ├── config.ts     HOURS_PER_DAY (7) + risk thresholds
+│   ├── config.ts     AppSettings type, DEFAULT_SETTINGS, Settings-page field metadata
 │   ├── import/
 │   │   ├── parsePlanner.ts   Planner .xlsx → Project
 │   │   ├── parseTime.ts      Timorc .csv/.xlsx → TimeEntry[]
@@ -66,10 +66,11 @@ src/
 │   │                 portfolioMetrics · recommendations
 │   └── export/       reportDefinitions · excelReports · pdfReports
 ├── lib/charterSections.ts   split charter notes into the 3 sections
-├── store/            portfolioStore.ts (project, time pool, snapshots)
+├── store/            portfolioStore.ts (project, time pool, snapshots) ·
+│                     settingsStore.ts (user settings, persisted)
 ├── components/       ui/ · layout/ · charts/ · shared/
 └── features/         upload · project (Overview/Details/Resources/Time) ·
-                      kanban · reports · search
+                      kanban · reports · search · settings
 ```
 
 ## 5. Domain model

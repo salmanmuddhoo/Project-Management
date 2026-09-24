@@ -24,6 +24,7 @@ import { PriorityBadge, StatusBadge } from "@/components/shared/badges";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { isDoneBucket } from "@/lib/metrics/projectMetrics";
 import { cn, formatDate, formatHours } from "@/lib/utils";
 import { useActiveSnapshot, usePortfolioStore } from "@/store/portfolioStore";
 import type { Task } from "@/types/project";
@@ -33,9 +34,8 @@ interface BoardTask extends Task {
   dndId: string;
 }
 
-const DONE_BUCKETS = ["completed", "done", "terminé", "terminée", "terminées"];
 function cardProgress(task: BoardTask): number {
-  if (DONE_BUCKETS.includes(task.bucket.trim().toLowerCase()) || task.endDate != null) return 100;
+  if (isDoneBucket(task.bucket) || task.endDate != null) return 100;
   return Math.max(0, Math.min(100, task.progressPct ?? 0));
 }
 

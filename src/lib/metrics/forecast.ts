@@ -11,8 +11,9 @@
  * Everything derives from already-computed EVM + metrics; nothing is stored.
  */
 
-import { FORECAST_BUDGET_TOLERANCE_PCT, FORECAST_SCHEDULE_TOLERANCE_PCT } from "@/lib/config";
+import type { AppSettings } from "@/lib/config";
 import { addDays, daysBetween } from "@/lib/utils";
+import { getSettings } from "@/store/settingsStore";
 import type { EvmResult } from "./evm";
 import type { ProjectMetrics } from "./projectMetrics";
 
@@ -48,14 +49,18 @@ export interface ForecastResult {
   summary: string;
 }
 
-export function computeForecast(evm: EvmResult, m: ProjectMetrics): ForecastResult {
+export function computeForecast(
+  evm: EvmResult,
+  m: ProjectMetrics,
+  s: AppSettings = getSettings(),
+): ForecastResult {
   // -- Budget forecast (primary EVM unit: hours first, else cost) ------------
   let budget: BudgetForecast | null = null;
   const u = evm.units[0];
   if (u) {
     const overrunPct = u.eac != null && u.bac > 0 ? ((u.eac - u.bac) / u.bac) * 100 : null;
     const outlook: ForecastOutlook =
-      overrunPct == null ? "unknown" : overrunPct > FORECAST_BUDGET_TOLERANCE_PCT ? "over" : "within";
+      overrunPct == null ? "unknown" : overrunPct > s.forecastBudgetTolerancePct ? "over" : "within";
     budget = { unit: u.unit, currency: u.currency, bac: u.bac, eac: u.eac, vac: u.vac, overrunPct, outlook };
   }
 
@@ -67,7 +72,7 @@ export function computeForecast(evm: EvmResult, m: ProjectMetrics): ForecastResu
     const forecastEnd = forecastDuration != null ? addDays(m.startDate, forecastDuration) : null;
     const daysVariance =
       forecastEnd != null && m.endDate != null ? daysBetween(m.endDate, forecastEnd) : null;
-    const tolDays = (FORECAST_SCHEDULE_TOLERANCE_PCT / 100) * m.durationDays;
+    const tolDays = (s.forecastScheduleTolerancePct / 100) * m.durationDays;
     const outlook: ForecastOutlook =
       daysVariance == null ? "unknown" : daysVariance > tolDays ? "over" : "within";
     schedule = { spi, plannedEnd: m.endDate, forecastEnd, daysVariance, outlook };

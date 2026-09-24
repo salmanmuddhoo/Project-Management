@@ -9,6 +9,7 @@ import { ProjectDetailsPage } from "@/features/project/ProjectDetailsPage";
 import { ResourcesPage } from "@/features/project/ResourcesPage";
 import { TimePage } from "@/features/project/TimeView";
 import { ReportsPage } from "@/features/reports/ReportsPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { UploadPage } from "@/features/upload/UploadPage";
 
 /**
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="evm" element={<EvmPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="import" element={<UploadPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<OverviewPage />} />
           </Route>
         </Routes>

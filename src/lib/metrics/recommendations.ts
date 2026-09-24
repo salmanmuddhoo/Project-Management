@@ -3,6 +3,8 @@
  * plus a couple of cross-project findings, severity-ranked.
  */
 
+import type { AppSettings } from "@/lib/config";
+import { getSettings } from "@/store/settingsStore";
 import type { ProjectSnapshot } from "./portfolioMetrics";
 
 export type RecommendationSeverity = "critical" | "warning" | "info";
@@ -14,9 +16,11 @@ export interface Recommendation {
   message: string;
 }
 
-const GOVERNANCE_STANDARD = 70;
-
-export function generateRecommendations(snapshots: ProjectSnapshot[]): Recommendation[] {
+export function generateRecommendations(
+  snapshots: ProjectSnapshot[],
+  settings: AppSettings = getSettings(),
+): Recommendation[] {
+  const GOVERNANCE_STANDARD = settings.governanceStandard;
   const recs: Recommendation[] = [];
 
   for (const s of snapshots) {

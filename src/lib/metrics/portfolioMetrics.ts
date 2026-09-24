@@ -7,13 +7,14 @@
 
 import type { Project, RagStatus } from "@/types/project";
 import type { TimeEntry } from "@/types/time";
-import { HOURS_PER_DAY } from "@/lib/config";
+import type { AppSettings } from "@/lib/config";
+import { getSettings } from "@/store/settingsStore";
 import { entriesForProject } from "@/lib/import/importFiles";
 import { computeEvm, type EvmResult } from "./evm";
 import { computeForecast, type ForecastResult } from "./forecast";
 import { computeGovernance, type GovernanceResult } from "./governance";
 import { computeHealthScore, ragOf, type HealthScore } from "./healthScore";
-import { computeProjectMetrics, type ProjectMetrics } from "./projectMetrics";
+import { computeProjectMetrics, withHoursPerDay, type ProjectMetrics } from "./projectMetrics";
 import { computeStatusLights, type ProjectStatusLights } from "./dimensionRag";
 
 export interface ProjectSnapshot {
@@ -28,23 +29,25 @@ export interface ProjectSnapshot {
 }
 
 export function buildSnapshot(
-  project: Project,
+  rawProject: Project,
   allEntries: TimeEntry[],
   today: Date = new Date(),
-  hoursPerDay: number = HOURS_PER_DAY,
+  settings: AppSettings = getSettings(),
 ): ProjectSnapshot {
+  // Day-based estimates/budgets follow the current hours-per-day setting.
+  const project = withHoursPerDay(rawProject, settings.hoursPerDay);
   const entries = entriesForProject(project, allEntries);
-  const metrics = computeProjectMetrics(project, entries, today, hoursPerDay);
+  const metrics = computeProjectMetrics(project, entries, today, settings);
   const evm = computeEvm(project.charter, metrics);
   return {
     project,
     entries,
     metrics,
-    health: computeHealthScore(metrics, evm),
+    health: computeHealthScore(metrics, evm, settings),
     governance: computeGovernance(project, metrics),
     evm,
-    forecast: computeForecast(evm, metrics),
-    statusLights: computeStatusLights(project, metrics, today),
+    forecast: computeForecast(evm, metrics, settings),
+    statusLights: computeStatusLights(project, metrics, today, settings),
   };
 }
 

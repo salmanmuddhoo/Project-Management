@@ -13,16 +13,11 @@
 
 import * as XLSX from "xlsx";
 
-import type { Priority, Project, ProjectCharter, Resource, Task, TimorcCode } from "@/types/project";
+import type { Effort, Priority, Project, ProjectCharter, Resource, Task, TimorcCode } from "@/types/project";
 import type { ValidationIssue, ValidationReport } from "@/types/validation";
-import { HOURS_PER_DAY } from "@/lib/config";
-import { hashId } from "@/lib/utils";
+import { effortToHours, hashId } from "@/lib/utils";
+import { getSettings } from "@/store/settingsStore";
 import { looksLikeCharterCard, parseCharterCard } from "./charterCard";
-
-const PROJECT_DETAILS_BUCKET = "project details";
-const CARD_CHARTER = "project charter";
-const CARD_TIMORC = "taches timorc";
-const CARD_RESOURCES = "resources";
 
 const norm = (v: unknown) => String(v ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -99,20 +94,20 @@ const PRIORITY_MAP: Record<string, Priority> = {
 const toPriority = (v: unknown): Priority => PRIORITY_MAP[norm(v)] ?? "";
 
 /** Hours label like "50 hrs" (legacy budget fallback). */
-function parseHoursLabel(label: string): number | null {
+function parseHoursLabel(label: string): Effort | null {
   const m = /(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|heures?)?/i.exec(label);
   if (!m) return null;
   const n = Number(m[1].replace(",", "."));
-  return Number.isFinite(n) ? n : null;
+  return Number.isFinite(n) ? { value: n, unit: "hours" } : null;
 }
 
-/** Task effort estimate from a label ("3 days", "2 hrs"); days → HOURS_PER_DAY. */
-function parseEstimateHours(labels: string): number | null {
+/** Task effort estimate from a label ("3 days", "2 hrs"), kept in its written unit. */
+function parseEstimate(labels: string): Effort | null {
   const m = /(\d+(?:[.,]\d+)?)\s*(h|hr|hrs|hour|hours|heures?|d|day|days|j|jour|jours)\b/i.exec(labels);
   if (!m) return null;
   const n = Number(m[1].replace(",", "."));
   if (!Number.isFinite(n)) return null;
-  return /^(d|day|days|j|jour|jours)$/i.test(m[2]) ? n * HOURS_PER_DAY : n;
+  return { value: n, unit: /^(d|day|days|j|jour|jours)$/i.test(m[2]) ? "days" : "hours" };
 }
 
 /**
@@ -178,6 +173,12 @@ export interface ParsedBoard {
 export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): ParsedBoard {
   const wb = XLSX.read(buffer, { type: "array", cellDates: true });
   const issues: ValidationIssue[] = [];
+  const settings = getSettings();
+  const PROJECT_DETAILS_BUCKET = norm(settings.projectDetailsBucket);
+  const CARD_CHARTER = norm(settings.charterCardTitle);
+  const CARD_TIMORC = norm(settings.timorcCardTitle);
+  const CARD_RESOURCES = norm(settings.resourcesCardTitle);
+  const hoursPerDay = settings.hoursPerDay;
 
   const planGrid = sheetGrid(wb, ["plan"]);
   const planRow = planGrid?.[1] ?? [];
@@ -207,7 +208,7 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
   let charter: ProjectCharter = {
     projectName: planName, projectCode: "", planId,
     startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
-    budgetHours: null, budgetCost: null, currency: "",
+    budgetHours: null, budgetEffort: null, budgetCost: null, currency: "",
     manager: "", department: "", communication: "", sections: [], notes: "",
     risksIssues: "", pmRecommendation: "",
   };
@@ -237,7 +238,7 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
             projectName: parsed.projectName || charter.projectName,
             startDate: start, endDate: end,
             plannedStartDate: parsed.plannedStartDate, plannedEndDate: parsed.plannedEndDate,
-            budgetHours: parsed.budgetHours, budgetCost: parsed.budgetCost, currency: parsed.currency,
+            budgetHours: parsed.budgetHours, budgetEffort: parsed.budgetEffort, budgetCost: parsed.budgetCost, currency: parsed.currency,
             department: parsed.department, communication: parsed.communication,
             sections: parsed.sections, notes,
           };
@@ -245,7 +246,8 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
           if (parsed.resources.length) resources = parsed.resources;
         } else {
           // Legacy charter card: label held the hours budget, notes were free text.
-          charter = { ...charter, startDate: start, endDate: end, budgetHours: parseHoursLabel(labels), notes };
+          const budgetEffort = parseHoursLabel(labels);
+          charter = { ...charter, startDate: start, endDate: end, budgetEffort, budgetHours: effortToHours(budgetEffort, hoursPerDay), notes };
         }
       } else if (t === CARD_TIMORC) {
         legacyTimorc = `${notes}\n${labels}`.split(/\r?\n|;|,/).map((s) => s.trim()).filter(Boolean);
@@ -259,10 +261,11 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
       seenBuckets.add(norm(bucket));
       orderedBuckets.push(bucket);
     }
+    const estimate = parseEstimate(labels);
     tasks.push({
       id: toText(cell(row, "id")) || hashId(`${planId}|${title}|${tasks.length}`),
       title,
-      bucket: bucket || "Backlog",
+      bucket: bucket || settings.defaultBucket,
       progressStatus: toText(cell(row, "progress")),
       priority: toPriority(cell(row, "priority")),
       assignee: toText(cell(row, "assignee")),
@@ -272,7 +275,8 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
       overdue: norm(cell(row, "overdue")) === "true",
       labels,
       notes,
-      estimateHours: parseEstimateHours(labels),
+      estimate,
+      estimateHours: effortToHours(estimate, hoursPerDay),
       progressPct: parseProgressPct(toText(cell(row, "checklist")), labels, notes),
     });
   }
@@ -284,15 +288,15 @@ export function parsePlannerBoard(fileName: string, buffer: ArrayBuffer): Parsed
   charter.manager = resources.find((r) => /project manager|chef de projet|pm|manager/i.test(r.role))?.name ?? resources[0]?.name ?? "";
   charter.projectCode = timorcCodes[0]?.projectPrefix ?? charter.projectName;
 
-  if (!charter.startDate || !charter.endDate) issues.push({ severity: "warning", scope: "Project Charter", message: "Charter start/end dates are missing — schedule and EVM will be limited." });
-  if (charter.budgetHours == null && charter.budgetCost == null) issues.push({ severity: "warning", scope: "Project Charter", message: "No budget (hours or cost) found on the charter — budget/EVM will be limited." });
-  if (timorcCodes.length === 0) issues.push({ severity: "warning", scope: "Taches Timorc", message: "No Timorc code found — time spent cannot be matched to this project." });
+  if (!charter.startDate || !charter.endDate) issues.push({ severity: "warning", scope: settings.charterCardTitle, message: "Charter start/end dates are missing — schedule and EVM will be limited." });
+  if (charter.budgetHours == null && charter.budgetCost == null) issues.push({ severity: "warning", scope: settings.charterCardTitle, message: "No budget (hours or cost) found on the charter — budget/EVM will be limited." });
+  if (timorcCodes.length === 0) issues.push({ severity: "warning", scope: settings.timorcCardTitle, message: "No Timorc code found — time spent cannot be matched to this project." });
   if (tasks.length === 0) issues.push({ severity: "warning", scope: "Board", message: "No work tasks found in the buckets." });
 
   const project: Project = {
     id: hashId(`${planId}|${charter.projectName}`),
     charter, resources, timorcCodes,
-    buckets: orderedBuckets.length > 0 ? orderedBuckets : ["Backlog"],
+    buckets: orderedBuckets.length > 0 ? orderedBuckets : [settings.defaultBucket],
     tasks,
     meta: { sourceFileName: fileName, importedAt: new Date(), warningCount: issues.filter((i) => i.severity === "warning").length },
   };
@@ -305,7 +309,7 @@ function emptyProject(fileName: string, planId: string, planName: string): Proje
     charter: {
       projectName: planName, projectCode: "", planId,
       startDate: null, endDate: null, plannedStartDate: null, plannedEndDate: null,
-      budgetHours: null, budgetCost: null, currency: "",
+      budgetHours: null, budgetEffort: null, budgetCost: null, currency: "",
       manager: "", department: "", communication: "", sections: [], notes: "",
       risksIssues: "", pmRecommendation: "",
     },
