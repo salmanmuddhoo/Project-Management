@@ -299,6 +299,49 @@ Looking only at the known (non-unknown) outlooks:
 
 ---
 
+## 4.5 Burndown (actual vs expected)
+File: **`src/lib/metrics/burndown.ts`** (`computeBurndown`), shown on the
+Overview as the **Burndown — actual vs expected** chart with two views.
+
+**Window:** charter start date → charter end date (extended to today when the
+project is past its end date). Needs both dates; otherwise the chart explains
+what is missing. Long projects are sampled to at most 180 points.
+
+**Expected** (both views) — the ideal straight-line burn:
+```
+expected(d) = scope × (1 − clamp((d − start) ÷ (end − start), 0, 1))
+```
+
+**Work view** — scope is the total **estimated hours** when tasks carry
+estimates, else the **task count** (the same basis as Overall progress):
+```
+actual(d) = scope − Σ weight of tasks completed on or before d
+```
+A task burns on its Planner **completion date**. A task that is done but has no
+completion date (e.g. moved to a done bucket) burns **today**. Partial
+progress (`Avancement`) is not burned until the task is complete — the
+standard burndown convention — so the line is a step chart.
+
+**Hours budget view** — scope is the charter hours budget:
+```
+actual(d) = budgetHours − Σ Timorc hours logged on or before d
+```
+Entries without a date count from the start. The line goes below zero when the
+project is over budget.
+
+**Verdict** (today): `variance = actual − expected`.
+- Work: `variance > tolerance` ⇒ **Behind plan**; `< −tolerance` ⇒ **Ahead of
+  plan**; else **On plan**. Tolerance = `forecastScheduleTolerancePct` (5 %) of
+  scope.
+- Budget: `variance < −tolerance` ⇒ **Burning fast**; `> tolerance` ⇒ **Under
+  burn**; else **On plan**. Tolerance = `forecastBudgetTolerancePct` (5 %) of
+  the budget.
+
+Scope is taken as it is today (task creation dates aren't imported), so scope
+added mid-project shows up as a higher starting point rather than a step up.
+
+---
+
 ## 5. Governance score
 
 File: **`src/lib/metrics/governance.ts`**. Ten pass/fail checks; the score is
@@ -351,6 +394,7 @@ and, for rules that are code rather than numbers, the function to edit.
 | How each health dimension is scored | Settings › Score formula (advanced), or the blocks in `computeHealthScore()` |
 | Forecast tolerances | Settings › Forecast |
 | Forecast formulas | `computeForecast()` in `forecast.ts` |
+| Burndown calculation / verdict | `computeBurndown()` in `burndown.ts`; tolerances in Settings › Forecast |
 | EVM formulas / cost rate | `evm.ts` |
 | Governance checks | the `checks` array in `governance.ts` |
 | Governance company standard | Settings › Governance (`governanceStandard`) |

@@ -16,6 +16,7 @@ import { generateRecommendations } from "@/lib/metrics/recommendations";
 import { cn, daysBetween, formatCost, formatDate, formatPct } from "@/lib/utils";
 import { useActiveSnapshot } from "@/store/portfolioStore";
 
+import { BurndownCard } from "./BurndownChart";
 import { ForecastCard } from "./ForecastCard";
 import { HoursByPersonChart, RecommendationsPanel, TaskBucketChart } from "./widgets";
 
@@ -188,6 +189,8 @@ export function OverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      <BurndownCard burndown={snapshot.burndown} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ChartCard title="Tasks by bucket" description="Where the work sits on the board"><TaskBucketChart snapshot={snapshot} /></ChartCard>
