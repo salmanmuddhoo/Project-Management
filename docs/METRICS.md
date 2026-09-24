@@ -300,8 +300,10 @@ Looking only at the known (non-unknown) outlooks:
 ---
 
 ## 4.5 Burndown (actual vs expected)
-File: **`src/lib/metrics/burndown.ts`** (`computeBurndown`), shown on the
-Overview as the **Burndown — actual vs expected** chart with two views.
+File: **`src/lib/metrics/burndown.ts`** (`computeBurndown`, `burndownVerdict`),
+shown on the Overview as the **Burndown — actual vs expected** chart with two
+views, and on the first page of the PDF report as two cards (Work, Hours
+Budget) with the same verdict.
 
 **Window:** charter start date → charter end date (extended to today when the
 project is past its end date). Needs both dates; otherwise the chart explains

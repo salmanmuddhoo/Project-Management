@@ -47,8 +47,9 @@ export function ReportsPage() {
           <h1 className="text-xl font-semibold">Report</h1>
           <p className="text-sm text-muted-foreground">
             An executive project report — a one-page status dashboard (snapshot, task status &amp;
-            priority, budget and highlights) followed by the full details: charter, status, time &amp;
-            budget, EVM, tasks, resources and governance. Generated in your browser; nothing leaves it.
+            priority, budget, highlights and burndown) followed by the full details: charter, status,
+            time &amp; budget, tasks, resources and governance. The Excel workbook also includes the EVM
+            table. Generated in your browser; nothing leaves it.
           </p>
         </div>
         {/* Discreet link to the internal EVM analysis (not in the sidebar). */}

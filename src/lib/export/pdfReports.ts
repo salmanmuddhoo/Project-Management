@@ -3,14 +3,16 @@
  *
  * Produces an executive "one-page project status" cover — an at-a-glance
  * dashboard with the project snapshot, task-status and priority donuts, a
- * budget (planned vs actual) comparison and key highlights — followed by the
- * full detailed tables (status, time & budget, EVM, tasks, resources,
- * governance) on the pages after it.
+ * budget (planned vs actual) comparison, key highlights and the burndown
+ * (work and hours budget, actual vs expected) — followed by the detailed
+ * tables (status, time & budget, forecast, resources, risk flags, governance)
+ * on the pages after it. The EVM table is Excel-only.
  */
 
 import { jsPDF } from "jspdf";
 import autoTable, { type RowInput, type Styles } from "jspdf-autotable";
 
+import { burndownVerdict, formatBurndownValue, type BurndownSeries } from "@/lib/metrics/burndown";
 import type { ProjectSnapshot } from "@/lib/metrics/portfolioMetrics";
 import { isBlockedBucket, isDoneBucket, isProgressBucket } from "@/lib/metrics/projectMetrics";
 import type { Task } from "@/types/project";
@@ -183,6 +185,148 @@ function drawBar(
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...MUTED);
   doc.text(valueText, trackX + barMaxW + 4, y + 7);
+}
+
+// ---------------------------------------------------------------------------
+// Burndown card (vector line chart)
+// ---------------------------------------------------------------------------
+
+const shortDateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", timeZone: "UTC" });
+
+/** A "nice" step (1, 2, 2.5, 5 × 10ⁿ) giving roughly `target` intervals. */
+function niceStep(range: number, target = 4): number {
+  if (!(range > 0)) return 1;
+  const raw = range / target;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / mag;
+  const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+  return nice * mag;
+}
+
+/** Card with a burndown line chart: dashed expected line, solid actual line to today. */
+function drawBurndownCard(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  title: string,
+  series: BurndownSeries,
+): void {
+  const cy = drawCard(doc, x, y, w, h, title);
+
+  if (!series.available || series.points.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...MUTED);
+    doc.text(doc.splitTextToSize(series.unavailableReason ?? "No data.", w - 24), x + w / 2, cy + (h - CARD_HEADER_H) / 2, {
+      align: "center",
+    });
+    return;
+  }
+
+  // -- Verdict (status label + one-line summary) ------------------------------
+  const verdict = burndownVerdict(series);
+  const toneColor: RGB = verdict.tone === "bad" ? RED : verdict.tone === "not-started" ? MUTED : GREEN;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.4);
+  doc.setTextColor(...toneColor);
+  doc.text(verdict.label, x + 10, cy + 13);
+  const labelW = doc.getTextWidth(verdict.label);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.4);
+  doc.setTextColor(...MUTED);
+  const summary = doc.splitTextToSize(verdict.summary, w - 20 - labelW - 6) as string[];
+  doc.text(summary.slice(0, 2), x + 10 + labelW + 6, cy + 13);
+
+  // -- Plot geometry -----------------------------------------------------------
+  const px = x + 38;
+  const pw = w - 38 - 30;
+  const py = cy + 36;
+  const ph = h - CARD_HEADER_H - 36 - 30;
+
+  const xs = series.points.map((p) => p.date);
+  const xMin = xs[0];
+  const xMax = Math.max(xs[xs.length - 1], xMin + 1);
+  const values = series.points.flatMap((p) => [p.expected, p.actual]).filter((v): v is number => v != null);
+  const step = niceStep(Math.max(...values, series.total) - Math.min(0, ...values));
+  const yMin = Math.floor(Math.min(0, ...values) / step) * step;
+  const yMax = Math.max(step, Math.ceil(Math.max(...values, series.total) / step) * step);
+  const sx = (d: number) => px + ((d - xMin) / (xMax - xMin)) * pw;
+  const sy = (v: number) => py + ph - ((v - yMin) / (yMax - yMin)) * ph;
+
+  // Grid + y labels (hairline, recessive).
+  doc.setFontSize(6.8);
+  doc.setFont("helvetica", "normal");
+  for (let v = yMin; v <= yMax + step / 1000; v += step) {
+    const gy = sy(v);
+    doc.setDrawColor(...(v === 0 && yMin < 0 ? GREY : BORDER));
+    doc.setLineWidth(0.5);
+    doc.line(px, gy, px + pw, gy);
+    doc.setTextColor(...MUTED);
+    const label = series.unit === "hours" ? `${Math.round(v)}h` : String(Math.round(v * 10) / 10);
+    doc.text(label, px - 4, gy + 2.3, { align: "right" });
+  }
+
+  // X labels: start and last day; today marker.
+  doc.setTextColor(...MUTED);
+  doc.text(shortDateFmt.format(xMin), px, py + ph + 10);
+  doc.text(shortDateFmt.format(xs[xs.length - 1]), px + pw, py + ph + 10, { align: "right" });
+  if (series.today != null) {
+    const tx = sx(series.today);
+    doc.setDrawColor(...GREY);
+    doc.setLineWidth(0.5);
+    doc.line(tx, py, tx, py + ph);
+    doc.text("Today", tx, py - 3, { align: "center" });
+  }
+
+  // Expected: straight dashed line start → end, flat at 0 afterwards.
+  doc.setLineCap("round");
+  doc.setDrawColor(...MUTED);
+  doc.setLineWidth(1.1);
+  doc.setLineDashPattern([3.5, 2.5], 0);
+  const endX = sx(series.endDate ?? xMax);
+  doc.line(sx(xMin), sy(series.total), endX, sy(0));
+  if (endX < px + pw - 0.5) doc.line(endX, sy(0), px + pw, sy(0));
+  doc.setLineDashPattern([], 0);
+
+  // Actual: solid line through the sampled points up to today.
+  const actual = series.points.filter((p) => p.actual != null) as Array<{ date: number; actual: number }>;
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(1.6);
+  doc.setLineJoin("round");
+  for (let i = 1; i < actual.length; i++) {
+    doc.line(sx(actual[i - 1].date), sy(actual[i - 1].actual), sx(actual[i].date), sy(actual[i].actual));
+  }
+  const last = actual[actual.length - 1];
+  if (last) {
+    const lx = sx(last.date);
+    const ly = sy(last.actual);
+    doc.setFillColor(...BLUE);
+    doc.circle(lx, ly, 2.4, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7);
+    doc.setTextColor(...INK);
+    doc.text(formatBurndownValue(series, last.actual), lx + 4, ly - 3);
+  }
+  doc.setLineWidth(0.6);
+
+  // Legend (bottom).
+  const lgY = y + h - 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...MUTED);
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(1.6);
+  doc.line(x + 10, lgY - 2.5, x + 22, lgY - 2.5);
+  doc.text("Actual", x + 26, lgY);
+  doc.setDrawColor(...MUTED);
+  doc.setLineWidth(1.1);
+  doc.setLineDashPattern([3.5, 2.5], 0);
+  doc.line(x + 60, lgY - 2.5, x + 72, lgY - 2.5);
+  doc.setLineDashPattern([], 0);
+  doc.text("Expected", x + 76, lgY);
+  doc.setLineWidth(0.6);
 }
 
 // ---------------------------------------------------------------------------
@@ -414,6 +558,12 @@ function drawExecutiveCover(
     }
   }
 
+  // ---- Card 6 & 7: Burndown (work | hours budget) ---------------------------
+  const row4Y = row3Y + row3H + 12;
+  const row4H = 186;
+  drawBurndownCard(doc, leftX, row4Y, cardW, row4H, "Burndown — Work", s.burndown.work);
+  drawBurndownCard(doc, rightX, row4Y, cardW, row4H, "Burndown — Hours Budget", s.burndown.budget);
+
   // ---- Flowing lower section: Schedule, Charter, Task & Issue status --------
   const pageHeight = doc.internal.pageSize.getHeight();
   const tableStyles = {
@@ -441,7 +591,7 @@ function drawExecutiveCover(
     return ny;
   };
 
-  let flowY = row3Y + row3H + 24;
+  let flowY = row4Y + row4H + 24;
 
   // ---- Schedule (planned vs actual, with variance) -------------------------
   flowY = sectionHeading("Schedule", flowY);
@@ -537,6 +687,9 @@ function drawExecutiveCover(
 // Detailed tables (the full report body)
 // ---------------------------------------------------------------------------
 
+/** Report tables left out of the PDF (see drawDetailTables). */
+const PDF_SKIPPED_TABLES = new Set(["Tasks", "Project Details", "Charter", "EVM"]);
+
 function drawDetailTables(
   doc: jsPDF,
   report: ReportDefinition,
@@ -564,9 +717,9 @@ function drawDetailTables(
   for (const table of report.build(snapshots)) {
     // Skip tables already shown on the executive cover to avoid duplication:
     // "Project Details" (Project Snapshot card + Schedule), "Charter" (Charter
-    // section) and "Tasks" (colour-coded "Task & Issue Status" table). They are
-    // still emitted in the Excel export, which has no cover.
-    if (table.title === "Tasks" || table.title === "Project Details" || table.title === "Charter") continue;
+    // section) and "Tasks" (colour-coded "Task & Issue Status" table). EVM is
+    // not part of the PDF. All of them are still emitted in the Excel export.
+    if (PDF_SKIPPED_TABLES.has(table.title)) continue;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...INK);
